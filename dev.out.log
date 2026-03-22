@@ -1,0 +1,31 @@
+
+> paroquia-nsc@0.0.0 dev
+> vite --host :: --port 3000 --host --port 5174
+
+
+  [32m[1mVITE[22m v4.5.14[39m  [2mready in [0m[1m1152[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://100.107.59.103:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.11.4:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.17.32.1:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.28.32.1:[1m5174[22m/[39m
+[2m18:18:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/admin/ManageGallery.jsx, /src/index.css[22m
+[2m18:20:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Gallery.jsx, /src/index.css[22m
+[2m18:20:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Gallery.jsx, /src/index.css[22m
+[2m18:21:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Gallery.jsx, /src/index.css[22m
+[2m18:21:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m18:21:39[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/pages/Gallery.jsx[22m Could not Fast Refresh (export removed)
+[2m18:21:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m18:22:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Gallery.jsx, /src/index.css[22m
+[2m18:25:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Gallery.jsx, /src/index.css[22m
+[2m18:25:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m18:25:24[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/pages/Gallery.jsx[22m Could not Fast Refresh (export removed)
+[2m18:25:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m18:26:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Gallery.jsx, /src/index.css[22m
+[2m18:28:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m18:40:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/ui/dialog.jsx, /src/index.css[22m
+[2m19:10:27[22m [36m[1m[vite][22m[39m [32m.env.example changed, restarting server...[39m
+[2m19:10:27[22m [36m[1m[vite][22m[39m server restarted.
+[2m19:11:36[22m [36m[1m[vite][22m[39m [32m.env.example changed, restarting server...[39m
+[2m19:11:36[22m [36m[1m[vite][22m[39m server restarted.

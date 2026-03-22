@@ -1,0 +1,43 @@
+
+> paroquia-nsc@0.0.0 dev
+> vite --host :: --port 3000
+
+Port 3000 is in use, trying another one...
+
+  [32m[1mVITE[22m v4.5.14[39m  [2mready in [0m[1m1370[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m3001[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://100.107.59.103:[1m3001[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.11.4:[1m3001[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.30.48.1:[1m3001[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.28.32.1:[1m3001[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh[22m[2m to show help[22m
+file:///C:/Users/vm_remoto_domingos/Desktop/Projeto%20site%20PNSC/horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814/tailwind.config.js:2
+module.exports = {
+^
+
+ReferenceError: module is not defined
+    at file:///C:/Users/vm_remoto_domingos/Desktop/Projeto%20site%20PNSC/horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814/tailwind.config.js:2:1
+    at ModuleJobSync.runSync (node:internal/modules/esm/module_job:395:35)
+    at ModuleLoader.importSyncForRequire (node:internal/modules/esm/loader:329:47)
+    at loadESMFromCJS (node:internal/modules/cjs/loader:1414:24)
+    at Module._compile (node:internal/modules/cjs/loader:1547:5)
+    at Object..js (node:internal/modules/cjs/loader:1677:16)
+    at Module.load (node:internal/modules/cjs/loader:1318:32)
+    at Function._load (node:internal/modules/cjs/loader:1128:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:219:24)
+    at Module.require (node:internal/modules/cjs/loader:1340:12)
+    at require (node:internal/modules/helpers:138:16)
+    at C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\tailwindcss\lib\lib\load-config.js:51:20
+    at loadConfig (C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\tailwindcss\lib\lib\load-config.js:55:6)
+    at getTailwindConfig (C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\tailwindcss\lib\lib\setupTrackingContext.js:74:116)
+    at C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\tailwindcss\lib\lib\setupTrackingContext.js:103:92
+    at C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\tailwindcss\lib\processTailwindFeatures.js:46:11
+    at plugins (C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\tailwindcss\lib\plugin.js:38:69)
+    at LazyResult.runOnRoot (C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\postcss\lib\lazy-result.js:361:16)
+    at LazyResult.runAsync (C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\postcss\lib\lazy-result.js:290:26)
+    at LazyResult.async (C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\postcss\lib\lazy-result.js:192:30)
+    at LazyResult.then (C:\Users\vm_remoto_domingos\Desktop\Projeto site PNSC\horizons-export-8926cfa8-6425-4293-b55f-e15069c2a814\node_modules\postcss\lib\lazy-result.js:436:17)
+
+Node.js v22.12.0
