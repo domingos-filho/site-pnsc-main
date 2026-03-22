@@ -81,10 +81,10 @@ const CarouselSection = () => {
         />
       </motion.div>
       <div className="absolute inset-0 bg-black/30" />
-      <div className="relative z-10 flex flex-col items-center justify-center h-full text-center text-white p-4">
+      <div className="relative z-10 flex h-full items-end justify-start p-4 md:p-8">
         <motion.h2
-          className="text-3xl md:text-5xl font-bold tracking-tight drop-shadow-lg"
-          initial={{ y: -20, opacity: 0 }}
+          className="text-lg md:text-[2.5rem] font-bold tracking-tight text-left text-white drop-shadow-lg max-w-[70%]"
+          initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
@@ -288,12 +288,12 @@ const NewsSection = () => {
                   className="block w-full text-left"
                   onClick={() => setSelectedNews(item)}
                 >
-                  <div className="h-48 bg-blue-50 rounded-t-2xl overflow-hidden flex items-center justify-center">
+                  <div className="h-48 bg-blue-50 rounded-t-2xl overflow-hidden flex items-center justify-center p-3">
                     {item.thumb || item.image ? (
                       <img
                         src={item.thumb || item.image}
                         alt={item.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain rounded-xl bg-white"
                         loading="lazy"
                         decoding="async"
                       />
@@ -345,12 +345,12 @@ const NewsSection = () => {
         <DialogContent className="max-w-2xl">
           {selectedNews && (
             <div className="space-y-4">
-              <div className="h-52 rounded-xl overflow-hidden bg-blue-50 flex items-center justify-center">
+              <div className="h-52 rounded-xl overflow-hidden bg-blue-50 flex items-center justify-center p-4">
                 {selectedNews.image || selectedNews.thumb ? (
                   <img
                     src={selectedNews.image || selectedNews.thumb}
                     alt={selectedNews.title}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain rounded-lg bg-white"
                   />
                 ) : (
                   <div className="text-blue-700 font-semibold">Sem imagem</div>

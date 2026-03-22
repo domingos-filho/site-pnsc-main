@@ -44,16 +44,20 @@ const Header = () => {
   return (
     <header className="bg-white shadow-md sticky top-0 z-50">
       <nav className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-24">
-          <Link to="/" className="flex items-center space-x-3 h-full">
+        <div className="flex items-center justify-between h-24 gap-3">
+          <Link to="/" className="flex items-center gap-2 h-full min-w-0">
             <img
               src="/assets/BRASAO_DA_PAROQUIA.png"
               alt="Brasão da Paróquia"
-              className="h-full py-2 object-contain"
+              className="h-16 sm:h-full py-2 object-contain shrink-0"
             />
-            <div className="flex flex-col -space-y-1">
-              <span className="text-lg font-bold text-blue-800">Paróquia de Nossa Senhora da</span>
-              <span className="text-4xl text-blue-600 font-priestacy font-bold">Conceição</span>
+            <div className="flex flex-col justify-center leading-none min-w-0">
+              <span className="text-[0.78rem] sm:text-base lg:text-lg font-bold text-blue-800 whitespace-nowrap tracking-tight">
+                Paróquia de Nossa Senhora da
+              </span>
+              <span className="text-[2rem] sm:text-[2.6rem] lg:text-[3rem] text-blue-600 font-priestacy font-bold leading-[0.9] whitespace-nowrap">
+                Conceição
+              </span>
             </div>
           </Link>
 
@@ -156,5 +160,4 @@ const Header = () => {
 };
 
 export default Header;
-
 

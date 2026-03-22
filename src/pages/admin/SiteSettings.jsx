@@ -687,7 +687,7 @@ const SettingsHomePage = () => {
                         <img
                           src={item.thumb || item.image}
                           alt={item.title}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain bg-white"
                         />
                       ) : (
                         <span className="text-xs text-blue-700">Sem imagem</span>
@@ -833,7 +833,7 @@ const SettingsHomePage = () => {
                     <img
                       src={editingNews.thumb || editingNews.image}
                       alt="Atual"
-                      className="w-24 h-16 object-cover rounded bg-gray-200 mt-1"
+                      className="w-24 h-16 object-contain rounded bg-white mt-1"
                     />
                   </div>
                 ) : null}
@@ -843,7 +843,7 @@ const SettingsHomePage = () => {
                     <img
                       src={newsImageFile.preview}
                       alt="Nova"
-                      className="w-24 h-16 object-cover rounded bg-gray-200 mt-1"
+                      className="w-24 h-16 object-contain rounded bg-white mt-1"
                     />
                   </div>
                 )}
@@ -1941,4 +1941,3 @@ const SiteSettings = () => {
 };
 
 export default SiteSettings;
-
