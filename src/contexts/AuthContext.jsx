@@ -77,6 +77,31 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let isMounted = true;
+    let authStateTimerId = null;
+
+    const syncUserFromSession = async (sessionUser) => {
+      if (!isMounted) return;
+
+      if (sessionUser) {
+        const { profile, error } = await fetchProfile(sessionUser);
+        if (!isMounted) return;
+
+        if (!profile || error) {
+          await supabase.auth.signOut({ scope: 'local' });
+          if (isMounted) {
+            setUser(null);
+          }
+        } else {
+          setUser(mapUser(sessionUser, profile));
+        }
+      } else {
+        setUser(null);
+      }
+
+      if (isMounted) {
+        setLoading(false);
+      }
+    };
 
     const init = async () => {
       if (!isSupabaseReady) {
@@ -104,48 +129,32 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       if (!isMounted) return;
-
-      if (sessionUser) {
-        const { profile, error } = await fetchProfile(sessionUser);
-        if (!isMounted) return;
-        if (!profile || error) {
-          await supabase.auth.signOut();
-          setUser(null);
-        } else {
-          setUser(mapUser(sessionUser, profile));
-        }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
+      await syncUserFromSession(sessionUser);
     };
 
     init();
 
     if (!isSupabaseReady) return () => {};
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!isMounted) return;
-        const sessionUser = session?.user;
-        if (sessionUser) {
-          const { profile, error } = await fetchProfile(sessionUser);
-          if (!isMounted) return;
-          if (!profile || error) {
-            await supabase.auth.signOut();
-            setUser(null);
-          } else {
-            setUser(mapUser(sessionUser, profile));
-          }
-        } else {
-          setUser(null);
-        }
-        setLoading(false);
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return;
+
+      if (authStateTimerId) {
+        clearTimeout(authStateTimerId);
       }
-    );
+
+      // Supabase recommends deferring extra client calls here to avoid auth deadlocks.
+      authStateTimerId = window.setTimeout(() => {
+        authStateTimerId = null;
+        void syncUserFromSession(session?.user || null);
+      }, 0);
+    });
 
     return () => {
       isMounted = false;
+      if (authStateTimerId) {
+        clearTimeout(authStateTimerId);
+      }
       authListener?.subscription?.unsubscribe();
     };
   }, []);
