@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit, Trash2, ImagePlus, X, UploadCloud } from 'lucide-react';
+import { Plus, Edit, Trash2, ImagePlus, X, UploadCloud, ArrowLeft, ArrowRight, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,6 +35,8 @@ import {
   deleteGalleryCollection,
   deleteGalleryMedia,
   loadGalleryCollections,
+  reorderGalleryMedia,
+  setGalleryCollectionCover,
   updateGalleryCollection,
 } from '@/lib/galleryData';
 import { deleteStoragePaths, isSupabaseReady, uploadImageFile } from '@/lib/supabaseStorage';
@@ -61,6 +63,13 @@ const GALLERY_UPLOAD_OPTIONS = {
 };
 
 const uniqueStoragePaths = (paths = []) => [...new Set(paths.filter(Boolean))];
+
+const moveArrayItem = (items, fromIndex, toIndex) => {
+  const nextItems = [...items];
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
+};
 
 const ManageGallery = () => {
   const { toast } = useToast();
@@ -546,6 +555,68 @@ const ManageGallery = () => {
     }
   };
 
+  const handleSetCoverPhoto = async (albumId, photoId) => {
+    const album = albums.find((item) => item.id === albumId);
+    if (!album || album.coverMediaId === photoId) return;
+
+    if (isUsingLegacyFallback) {
+      const updatedGallery = albums.map((item) =>
+        item.id === albumId ? { ...item, coverMediaId: photoId } : item
+      );
+      await persistLegacyGallery(updatedGallery, 'Capa do album atualizada.');
+      return;
+    }
+
+    try {
+      await setGalleryCollectionCover(albumId, photoId);
+      await loadAlbums();
+      toast({ title: 'Sucesso!', description: 'Capa do album atualizada.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatErrorMessage(error, 'Falha ao definir capa do album.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleMovePhoto = async (albumId, photoId, direction) => {
+    const album = albums.find((item) => item.id === albumId);
+    if (!album) return;
+
+    const currentIndex = album.images.findIndex((photo) => photo.id === photoId);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= album.images.length) {
+      return;
+    }
+
+    if (isUsingLegacyFallback) {
+      const updatedGallery = albums.map((item) =>
+        item.id === albumId
+          ? { ...item, images: moveArrayItem(item.images, currentIndex, nextIndex) }
+          : item
+      );
+      await persistLegacyGallery(updatedGallery, 'Ordem das fotos atualizada.');
+      return;
+    }
+
+    try {
+      const orderedIds = moveArrayItem(
+        album.images.map((photo) => photo.id),
+        currentIndex,
+        nextIndex
+      );
+      await reorderGalleryMedia(albumId, orderedIds);
+      await loadAlbums();
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatErrorMessage(error, 'Falha ao reordenar fotos.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <>
       <Helmet>
@@ -665,44 +736,82 @@ const ManageGallery = () => {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   <AnimatePresence>
-                    {album.images.map((photo) => (
+                    {album.images.map((photo, index) => (
                       <motion.div
                         key={photo.id}
                         layout
                         initial={{ opacity: 0, scale: 0.5 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.5 }}
-                        className="relative group cursor-zoom-in"
-                        onClick={() => setPreviewPhoto(photo)}
+                        className="rounded-lg border border-gray-100 bg-white p-2 shadow-sm"
                       >
-                        <img
-                          src={photo.thumbSrc || photo.src}
-                          className="w-full h-32 object-contain bg-white rounded-md"
-                          alt={photo.alt || album.title}
-                        />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir foto?</AlertDialogTitle>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Nao</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeletePhoto(album.id, photo.id)}>
-                                  Sim
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                        <button
+                          type="button"
+                          className="block w-full cursor-zoom-in"
+                          onClick={() => setPreviewPhoto(photo)}
+                        >
+                          <img
+                            src={photo.thumbSrc || photo.src}
+                            className="w-full h-32 object-contain bg-white rounded-md"
+                            alt={photo.alt || album.title}
+                          />
+                        </button>
+
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span
+                            className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                              photo.isCover ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'
+                            }`}
+                          >
+                            {photo.isCover ? 'Capa' : 'Foto'}
+                          </span>
+
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={index === 0}
+                              onClick={() => handleMovePhoto(album.id, photo.id, -1)}
+                            >
+                              <ArrowLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={index === album.images.length - 1}
+                              onClick={() => handleMovePhoto(album.id, photo.id, 1)}
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={photo.isCover ? 'default' : 'outline'}
+                              size="icon"
+                              onClick={() => handleSetCoverPhoto(album.id, photo.id)}
+                            >
+                              <Star className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="icon">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Excluir foto?</AlertDialogTitle>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Nao</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeletePhoto(album.id, photo.id)}>
+                                    Sim
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </div>
                       </motion.div>
                     ))}

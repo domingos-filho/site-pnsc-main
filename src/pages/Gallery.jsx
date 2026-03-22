@@ -2,7 +2,7 @@ import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarDays, FilterX, Image, MapPin, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, FilterX, Image, MapPin, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useData } from '@/contexts/DataContext';
@@ -25,11 +25,71 @@ const formatAlbumDate = (album) => {
   return 'Data nao informada';
 };
 
-const getAlbumCover = (album) => album?.images?.[0]?.thumbSrc || album?.images?.[0]?.src || null;
+const ALBUMS_PER_PAGE = 9;
+
+const getAlbumCover = (album) =>
+  album?.coverImage?.thumbSrc ||
+  album?.images?.find((image) => image.isCover)?.thumbSrc ||
+  album?.images?.[0]?.thumbSrc ||
+  album?.images?.[0]?.src ||
+  null;
 
 const getAlbumPhotoCount = (album) => Number(album?.photoCount || album?.images?.length || 0);
 
 const normalizeFilterValue = (value) => String(value || '').trim().toLowerCase();
+
+const sortAlbums = (albums, sortBy) => {
+  const items = [...albums];
+
+  switch (sortBy) {
+    case 'oldest':
+      return items.sort((left, right) => {
+        const leftYear = Number(left.searchYear || left.year || 0);
+        const rightYear = Number(right.searchYear || right.year || 0);
+        if (leftYear !== rightYear) return leftYear - rightYear;
+        return (left.title || '').localeCompare(right.title || '', 'pt-BR', { sensitivity: 'base' });
+      });
+    case 'title-asc':
+      return items.sort((left, right) =>
+        (left.title || '').localeCompare(right.title || '', 'pt-BR', { sensitivity: 'base' })
+      );
+    case 'title-desc':
+      return items.sort((left, right) =>
+        (right.title || '').localeCompare(left.title || '', 'pt-BR', { sensitivity: 'base' })
+      );
+    case 'photos-desc':
+      return items.sort((left, right) => {
+        const photoDiff = getAlbumPhotoCount(right) - getAlbumPhotoCount(left);
+        if (photoDiff !== 0) return photoDiff;
+        return (left.title || '').localeCompare(right.title || '', 'pt-BR', { sensitivity: 'base' });
+      });
+    case 'recent':
+    default:
+      return items.sort((left, right) => {
+        const leftYear = Number(left.searchYear || left.year || 0);
+        const rightYear = Number(right.searchYear || right.year || 0);
+        if (leftYear !== rightYear) return rightYear - leftYear;
+
+        const leftDate = left.eventDate || '';
+        const rightDate = right.eventDate || '';
+        if (leftDate !== rightDate) return rightDate.localeCompare(leftDate);
+
+        return (left.title || '').localeCompare(right.title || '', 'pt-BR', { sensitivity: 'base' });
+      });
+  }
+};
+
+const buildVisiblePages = (currentPage, totalPages) => {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  let start = Math.max(1, currentPage - 2);
+  let end = Math.min(totalPages, start + 4);
+  start = Math.max(1, end - 4);
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+};
 
 const Gallery = () => {
   const { siteData, loading } = useData();
@@ -39,6 +99,8 @@ const Gallery = () => {
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedCommunity, setSelectedCommunity] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [sortBy, setSortBy] = useState('recent');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const legacyAlbums = useMemo(() => normalizeGallery(siteData.gallery), [siteData.gallery]);
@@ -137,11 +199,30 @@ const Gallery = () => {
     });
   }, [albums, deferredSearchTerm, selectedCategory, selectedCommunity, selectedYear]);
 
+  const sortedAlbums = useMemo(() => sortAlbums(filteredAlbums, sortBy), [filteredAlbums, sortBy]);
+  const totalPages = Math.max(1, Math.ceil(sortedAlbums.length / ALBUMS_PER_PAGE));
+  const visiblePages = useMemo(() => buildVisiblePages(currentPage, totalPages), [currentPage, totalPages]);
+  const paginatedAlbums = useMemo(() => {
+    const startIndex = (currentPage - 1) * ALBUMS_PER_PAGE;
+    return sortedAlbums.slice(startIndex, startIndex + ALBUMS_PER_PAGE);
+  }, [currentPage, sortedAlbums]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [deferredSearchTerm, selectedCategory, selectedCommunity, selectedYear, sortBy]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedYear('all');
     setSelectedCommunity('all');
     setSelectedCategory('all');
+    setSortBy('recent');
   };
 
   if (loading || loadingGallery) {
@@ -257,19 +338,42 @@ const Gallery = () => {
 
       <section className="py-12 bg-gray-50 min-h-[40vh]">
         <div className="container mx-auto px-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
             <div>
               <p className="text-sm uppercase tracking-[0.18em] text-blue-700 font-semibold">Resultados</p>
               <h2 className="text-3xl font-bold text-gray-900">
-                {filteredAlbums.length} evento{filteredAlbums.length === 1 ? '' : 's'} encontrado
-                {filteredAlbums.length === 1 ? '' : 's'}
+                {sortedAlbums.length} evento{sortedAlbums.length === 1 ? '' : 's'} encontrado
+                {sortedAlbums.length === 1 ? '' : 's'}
               </h2>
+              {sortedAlbums.length > 0 && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Pagina {currentPage} de {totalPages}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2 min-w-[220px]">
+              <label htmlFor="gallery-sort" className="text-sm font-medium text-gray-700">
+                Ordenar por
+              </label>
+              <select
+                id="gallery-sort"
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="recent">Mais recentes</option>
+                <option value="oldest">Mais antigas</option>
+                <option value="photos-desc">Mais fotos</option>
+                <option value="title-asc">Titulo A-Z</option>
+                <option value="title-desc">Titulo Z-A</option>
+              </select>
             </div>
           </div>
 
-          {filteredAlbums.length > 0 ? (
+          {paginatedAlbums.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredAlbums.map((album, index) => {
+              {paginatedAlbums.map((album, index) => {
                 const coverSrc = getAlbumCover(album);
                 const photoCount = getAlbumPhotoCount(album);
 
@@ -356,6 +460,41 @@ const Gallery = () => {
               </p>
               <Button variant="outline" onClick={clearFilters}>
                 Limpar filtros
+              </Button>
+            </div>
+          )}
+
+          {sortedAlbums.length > 0 && totalPages > 1 && (
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Anterior
+              </Button>
+
+              {visiblePages.map((page) => (
+                <Button
+                  key={page}
+                  type="button"
+                  variant={page === currentPage ? 'default' : 'outline'}
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </Button>
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              >
+                Proxima
+                <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </div>
           )}

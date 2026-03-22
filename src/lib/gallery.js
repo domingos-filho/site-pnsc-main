@@ -66,9 +66,19 @@ export const normalizeGalleryImage = (image, albumTitle = 'Album', index = 0) =>
 
 export const normalizeGalleryAlbum = (album, fallbackIndex = 0) => {
   const title = normalizeAlbumTitle(album, fallbackIndex);
-  const images = (Array.isArray(album?.images) ? album.images : [])
+  const coverMediaId = normalizeText(album?.coverMediaId || album?.cover_media_id) || null;
+  const rawImages = (Array.isArray(album?.images) ? album.images : [])
     .map((image, index) => normalizeGalleryImage(image, title, index))
     .filter(Boolean);
+  const resolvedCoverId =
+    (coverMediaId && rawImages.some((image) => image.id === coverMediaId))
+      ? coverMediaId
+      : rawImages[0]?.id || null;
+  const images = rawImages.map((image) => ({
+    ...image,
+    isCover: image.id === resolvedCoverId,
+  }));
+  const coverImage = images.find((image) => image.id === resolvedCoverId) || null;
 
   const year = album?.year ?? '';
   const community = normalizeText(album?.community);
@@ -87,6 +97,8 @@ export const normalizeGalleryAlbum = (album, fallbackIndex = 0) => {
     endDate: normalizeText(album?.endDate || album?.end_date),
     photoCount: Number(album?.photoCount || images.length || 0),
     isPublished: album?.isPublished !== false,
+    coverMediaId: resolvedCoverId,
+    coverImage,
     images,
   };
 };
@@ -151,6 +163,8 @@ export const mergeGalleryCollections = (primary = [], secondary = []) => {
       ...existingAlbum,
       year: existingAlbum.year || album.year,
       community: existingAlbum.community || album.community,
+      coverMediaId: existingAlbum.coverMediaId || album.coverMediaId,
+      coverImage: existingAlbum.coverImage || album.coverImage,
       images: [...imageMap.values()],
     });
   });

@@ -117,9 +117,11 @@ const normalizeMediaRow = (row, albumTitle = 'Album', index = 0) => {
     {
       id: row.id,
       path: row.path,
+      mediumPath: row.medium_path,
       thumbPath: row.thumb_path,
       src: row.src_url,
       thumbSrc: row.thumb_url,
+      mediumSrc: row.src_url,
       alt: row.alt_text || row.caption,
     },
     albumTitle,
@@ -200,10 +202,27 @@ const attachMediaToCollections = (collections, mediaRows = []) => {
   });
 
   return sortCollections(
-    collections.map((collection) => ({
-      ...collection,
-      images: mediaByCollection.get(collection.id) || [],
-    }))
+    collections.map((collection) => {
+      const images = mediaByCollection.get(collection.id) || [];
+      const explicitCoverId =
+        (collection.coverMediaId && images.some((image) => image.id === collection.coverMediaId))
+          ? collection.coverMediaId
+          : null;
+      const featuredCoverId = images.find((image) => image.isFeatured)?.id || null;
+      const fallbackCoverId = images[0]?.id || null;
+      const resolvedCoverId = explicitCoverId || featuredCoverId || fallbackCoverId;
+      const coverImage = images.find((image) => image.id === resolvedCoverId) || null;
+
+      return {
+        ...collection,
+        coverMediaId: resolvedCoverId,
+        coverImage,
+        images: images.map((image) => ({
+          ...image,
+          isCover: image.id === resolvedCoverId,
+        })),
+      };
+    })
   );
 };
 
@@ -426,5 +445,61 @@ export const deleteGalleryMedia = async (mediaId) => {
 
   if (error) {
     throw error;
+  }
+};
+
+export const setGalleryCollectionCover = async (collectionId, mediaId) => {
+  ensureSupabase();
+
+  if (!collectionId || !mediaId) {
+    throw new Error('Album ou foto invalida para definir capa.');
+  }
+
+  const { data, error } = await withTimeout(
+    supabase
+      .from(GALLERY_COLLECTIONS_TABLE)
+      .update({ cover_media_id: mediaId })
+      .eq('id', collectionId)
+      .select(COLLECTION_SELECT_FIELDS)
+      .single(),
+    REQUEST_TIMEOUT_MS,
+    'Tempo limite ao definir capa do album.'
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizeCollectionRow(data);
+};
+
+export const reorderGalleryMedia = async (collectionId, orderedMediaIds = []) => {
+  ensureSupabase();
+
+  if (!collectionId) {
+    throw new Error('Album invalido.');
+  }
+
+  const normalizedIds = orderedMediaIds.map((id) => String(id || '').trim()).filter(Boolean);
+  if (normalizedIds.length === 0) {
+    return;
+  }
+
+  const updates = normalizedIds.map((mediaId, index) =>
+    withTimeout(
+      supabase
+        .from(GALLERY_MEDIA_TABLE)
+        .update({ sort_order: index })
+        .eq('id', mediaId)
+        .eq('collection_id', collectionId),
+      REQUEST_TIMEOUT_MS,
+      'Tempo limite ao reordenar fotos da galeria.'
+    )
+  );
+
+  const results = await Promise.all(updates);
+  const failed = results.find((result) => result.error);
+  if (failed?.error) {
+    throw failed.error;
   }
 };
