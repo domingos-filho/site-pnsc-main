@@ -32,7 +32,7 @@ const Dashboard = () => {
       path: '/dashboard/gallery',
       icon: Image,
       description: 'Adicione, edite ou remova fotos dos eventos.',
-      roles: ['member', 'secretary', 'admin'],
+      roles: ['secretary', 'admin'],
       color: 'text-purple-600',
     },
     {

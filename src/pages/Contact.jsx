@@ -29,6 +29,26 @@ const parseCoord = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const LEGACY_DEFAULT_COORDS = {
+  lat: -5.881957586566276,
+  lng: -35.19923210144043,
+};
+
+const CONTACT_DEFAULT_COORDS = {
+  lat: -5.8804699,
+  lng: -35.2098566,
+};
+
+const coordsMatch = (left, right, tolerance = 0.0002) => Math.abs(left - right) <= tolerance;
+
+const normalizeMapCoords = (lat, lng) => {
+  if (coordsMatch(lat, LEGACY_DEFAULT_COORDS.lat) && coordsMatch(lng, LEGACY_DEFAULT_COORDS.lng)) {
+    return CONTACT_DEFAULT_COORDS;
+  }
+
+  return { lat, lng };
+};
+
 const Contact = () => {
   const { toast } = useToast();
   const { siteData, loading } = useData();
@@ -38,9 +58,9 @@ const Contact = () => {
   }
 
   const { address, phone, email, whatsapp, officeHours, social, mapLat, mapLng } = siteData.contact;
-  const defaultCoords = { lat: -5.881957586566276, lng: -35.19923210144043 };
-  const resolvedLat = parseCoord(mapLat, defaultCoords.lat);
-  const resolvedLng = parseCoord(mapLng, defaultCoords.lng);
+  const parsedLat = parseCoord(mapLat, CONTACT_DEFAULT_COORDS.lat);
+  const parsedLng = parseCoord(mapLng, CONTACT_DEFAULT_COORDS.lng);
+  const { lat: resolvedLat, lng: resolvedLng } = normalizeMapCoords(parsedLat, parsedLng);
   const encodedAddress = encodeURIComponent(address || `${resolvedLat},${resolvedLng}`);
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
   const wazeUrl = `https://waze.com/ul?ll=${resolvedLat}%2C${resolvedLng}&navigate=yes&zoom=17`;

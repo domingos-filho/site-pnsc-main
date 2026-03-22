@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,27 +28,41 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useData } from '@/contexts/DataContext';
-import { normalizeGallery, normalizeGalleryImage } from '@/lib/gallery';
+import { normalizeGallery } from '@/lib/gallery';
+import {
+  createGalleryCollection,
+  createGalleryMediaBatch,
+  deleteGalleryCollection,
+  deleteGalleryMedia,
+  loadGalleryCollections,
+  updateGalleryCollection,
+} from '@/lib/galleryData';
 import { deleteStoragePaths, isSupabaseReady, uploadImageFile } from '@/lib/supabaseStorage';
 
-const showSyncWarning = (toast) => {
+const showLegacySyncWarning = (toast) => {
   toast({
     title: 'Aviso',
-    description: 'Galeria salva localmente, mas nao foi possivel sincronizar com o Supabase.',
+    description: 'Galeria salva apenas no modo legado. Configure o Supabase para usar a galeria relacional.',
   });
 };
+
+const formatErrorMessage = (error, fallbackMessage) => error?.message || fallbackMessage;
 
 const ManageGallery = () => {
   const { toast } = useToast();
   const { siteData, updateSiteData } = useData();
+  const [albums, setAlbums] = useState([]);
+  const [loadingAlbums, setLoadingAlbums] = useState(true);
   const [previewPhoto, setPreviewPhoto] = useState(null);
   const [isAlbumDialogOpen, setIsAlbumDialogOpen] = useState(false);
   const [isPhotosDialogOpen, setIsPhotosDialogOpen] = useState(false);
   const [currentAlbum, setCurrentAlbum] = useState(null);
   const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSavingAlbum, setIsSavingAlbum] = useState(false);
+  const [isUsingLegacyFallback, setIsUsingLegacyFallback] = useState(!isSupabaseReady);
 
-  const albums = normalizeGallery(siteData.gallery);
+  const legacyAlbums = useMemo(() => normalizeGallery(siteData.gallery), [siteData.gallery]);
 
   useEffect(() => {
     return () => {
@@ -60,20 +74,64 @@ const ManageGallery = () => {
     };
   }, [files]);
 
-  const persistGallery = async (updatedGallery, successMessage) => {
-    const result = await updateSiteData({
-      ...siteData,
-      gallery: updatedGallery,
-    });
+  const persistLegacyGallery = useCallback(
+    async (updatedGallery, successMessage) => {
+      const result = await updateSiteData({
+        ...siteData,
+        gallery: updatedGallery,
+      });
 
-    if (!result.ok) {
-      showSyncWarning(toast);
-    } else if (successMessage) {
-      toast({ title: 'Sucesso!', description: successMessage });
+      const normalizedGallery = normalizeGallery(updatedGallery);
+      setAlbums(normalizedGallery);
+      setIsUsingLegacyFallback(true);
+
+      if (!result.ok) {
+        showLegacySyncWarning(toast);
+      } else if (successMessage) {
+        toast({ title: 'Sucesso!', description: successMessage });
+      }
+
+      return result;
+    },
+    [siteData, toast, updateSiteData]
+  );
+
+  const loadAlbums = useCallback(async () => {
+    if (!isSupabaseReady) {
+      setAlbums(legacyAlbums);
+      setIsUsingLegacyFallback(true);
+      setLoadingAlbums(false);
+      return;
     }
 
-    return result;
-  };
+    setLoadingAlbums(true);
+
+    try {
+      const remoteAlbums = await loadGalleryCollections();
+
+      if (remoteAlbums.length === 0 && legacyAlbums.length > 0) {
+        setAlbums(legacyAlbums);
+        setIsUsingLegacyFallback(true);
+      } else {
+        setAlbums(remoteAlbums);
+        setIsUsingLegacyFallback(false);
+      }
+    } catch (error) {
+      console.error('Falha ao carregar galeria relacional', error);
+      setAlbums(legacyAlbums);
+      setIsUsingLegacyFallback(true);
+      toast({
+        title: 'Aviso',
+        description: 'Falha ao carregar a galeria relacional. Exibindo dados legados.',
+      });
+    } finally {
+      setLoadingAlbums(false);
+    }
+  }, [legacyAlbums, toast]);
+
+  useEffect(() => {
+    void loadAlbums();
+  }, [loadAlbums]);
 
   const openAlbumDialog = (album = null) => {
     setCurrentAlbum(album);
@@ -102,60 +160,6 @@ const ManageGallery = () => {
     setIsPhotosDialogOpen(false);
   };
 
-  const handleSaveAlbum = async (event) => {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const albumData = {
-      title: String(formData.get('title') || '').trim(),
-      year: String(formData.get('year') || '').trim(),
-      community: String(formData.get('community') || '').trim(),
-    };
-
-    if (!albumData.title) {
-      toast({ title: 'Erro', description: 'Informe o nome do album.', variant: 'destructive' });
-      return;
-    }
-
-    if (!albumData.year) {
-      toast({ title: 'Erro', description: "O campo 'Ano' e obrigatorio.", variant: 'destructive' });
-      return;
-    }
-
-    if (currentAlbum?.id) {
-      const updatedAlbums = albums.map((album) =>
-        album.id === currentAlbum.id ? { ...album, ...albumData } : album
-      );
-      await persistGallery(updatedAlbums, 'Album atualizado.');
-    } else {
-      const newAlbum = {
-        id: `album-${Date.now()}`,
-        ...albumData,
-        images: [],
-      };
-      await persistGallery([...albums, newAlbum], 'Album criado.');
-    }
-
-    closeAlbumDialog();
-  };
-
-  const handleDeleteAlbum = async (albumId) => {
-    const albumToDelete = albums.find((album) => album.id === albumId);
-    const storagePaths = (albumToDelete?.images || [])
-      .flatMap((photo) => [photo.path, photo.thumbPath])
-      .filter(Boolean);
-
-    if (storagePaths.length > 0 && isSupabaseReady) {
-      try {
-        await deleteStoragePaths(storagePaths);
-      } catch (error) {
-        toast({ title: 'Aviso', description: 'Nao foi possivel remover arquivos do storage.' });
-      }
-    }
-
-    const updatedAlbums = albums.filter((album) => album.id !== albumId);
-    await persistGallery(updatedAlbums, 'Album e fotos removidos.');
-  };
-
   const onDrop = useCallback((acceptedFiles) => {
     const imageFiles = acceptedFiles.filter((file) => file.type.startsWith('image/'));
     const previewFiles = imageFiles.map((file) =>
@@ -178,6 +182,117 @@ const ManageGallery = () => {
     }
   };
 
+  const handleSaveAlbum = async (event) => {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const albumData = {
+      title: String(formData.get('title') || '').trim(),
+      year: String(formData.get('year') || '').trim(),
+      community: String(formData.get('community') || '').trim(),
+    };
+
+    if (!albumData.title) {
+      toast({ title: 'Erro', description: 'Informe o nome do album.', variant: 'destructive' });
+      return;
+    }
+
+    if (!albumData.year) {
+      toast({ title: 'Erro', description: "O campo 'Ano' e obrigatorio.", variant: 'destructive' });
+      return;
+    }
+
+    if (isUsingLegacyFallback) {
+      if (currentAlbum?.id) {
+        const updatedAlbums = albums.map((album) =>
+          album.id === currentAlbum.id ? { ...album, ...albumData } : album
+        );
+        await persistLegacyGallery(updatedAlbums, 'Album atualizado.');
+      } else {
+        const newAlbum = {
+          id: `album-${Date.now()}`,
+          ...albumData,
+          images: [],
+        };
+        await persistLegacyGallery([...albums, newAlbum], 'Album criado.');
+      }
+
+      closeAlbumDialog();
+      return;
+    }
+
+    setIsSavingAlbum(true);
+
+    try {
+      if (currentAlbum?.id) {
+        await updateGalleryCollection(currentAlbum.id, albumData);
+      } else {
+        await createGalleryCollection(albumData);
+      }
+
+      await loadAlbums();
+      closeAlbumDialog();
+      toast({
+        title: 'Sucesso!',
+        description: `Album ${currentAlbum ? 'atualizado' : 'criado'}.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatErrorMessage(error, 'Falha ao salvar album.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingAlbum(false);
+    }
+  };
+
+  const handleDeleteAlbum = async (albumId) => {
+    const albumToDelete = albums.find((album) => album.id === albumId);
+    if (!albumToDelete) return;
+
+    if (isUsingLegacyFallback) {
+      const storagePaths = (albumToDelete.images || [])
+        .flatMap((photo) => [photo.path, photo.thumbPath])
+        .filter(Boolean);
+
+      if (storagePaths.length > 0 && isSupabaseReady) {
+        try {
+          await deleteStoragePaths(storagePaths);
+        } catch (error) {
+          toast({ title: 'Aviso', description: 'Nao foi possivel remover arquivos do storage.' });
+        }
+      }
+
+      const updatedAlbums = albums.filter((album) => album.id !== albumId);
+      await persistLegacyGallery(updatedAlbums, 'Album e fotos removidos.');
+      return;
+    }
+
+    const storagePaths = (albumToDelete.images || [])
+      .flatMap((photo) => [photo.path, photo.thumbPath, photo.mediumPath])
+      .filter(Boolean);
+
+    if (storagePaths.length > 0) {
+      try {
+        await deleteStoragePaths(storagePaths);
+      } catch (error) {
+        toast({ title: 'Aviso', description: 'Nao foi possivel remover arquivos do storage.' });
+      }
+    }
+
+    try {
+      await deleteGalleryCollection(albumId);
+      await loadAlbums();
+      toast({ title: 'Sucesso!', description: 'Album e fotos removidos.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatErrorMessage(error, 'Falha ao excluir album.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleUploadPhotos = async () => {
     if (!currentAlbum || files.length === 0) return;
 
@@ -186,7 +301,89 @@ const ManageGallery = () => {
       return;
     }
 
+    if (isUsingLegacyFallback) {
+      setIsUploading(true);
+      try {
+        const uploadResults = await Promise.allSettled(
+          files.map((file) =>
+            uploadImageFile({
+              file,
+              folder: `gallery/${currentAlbum.id}`,
+              generateThumbnail: true,
+              thumbnailMaxWidth: 900,
+              thumbnailMaxHeight: 900,
+            })
+          )
+        );
+
+        const uploadedFiles = [];
+        const failedFiles = [];
+
+        uploadResults.forEach((result, index) => {
+          const file = files[index];
+          if (result.status === 'fulfilled') {
+            uploadedFiles.push({ file, upload: result.value });
+            if (file?.preview) {
+              URL.revokeObjectURL(file.preview);
+            }
+          } else {
+            failedFiles.push(file);
+          }
+        });
+
+        if (uploadedFiles.length === 0) {
+          const firstError = uploadResults.find((result) => result.status === 'rejected')?.reason;
+          throw new Error(firstError?.message || 'Falha ao enviar imagens.');
+        }
+
+        const albumToUpdate = albums.find((album) => album.id === currentAlbum.id);
+        const existingCount = albumToUpdate?.images.length || 0;
+        const baseId = Date.now();
+        const newImages = uploadedFiles.map(({ file, upload }, index) => ({
+          id: `${currentAlbum.id}-image-${baseId + index}`,
+          src: upload.publicUrl,
+          thumbSrc: upload.thumbUrl || upload.publicUrl,
+          path: upload.path,
+          thumbPath: upload.thumbPath || null,
+          alt: file?.name || `${currentAlbum.title} - Foto ${existingCount + index + 1}`,
+        }));
+
+        const updatedGallery = albums.map((album) =>
+          album.id === currentAlbum.id
+            ? { ...album, images: [...album.images, ...newImages] }
+            : album
+        );
+
+        const saveResult = await persistLegacyGallery(
+          updatedGallery,
+          failedFiles.length === 0 ? `${newImages.length} fotos adicionadas ao album.` : ''
+        );
+
+        if (failedFiles.length > 0) {
+          toast({ title: 'Aviso', description: `${failedFiles.length} imagens falharam no upload.` });
+          setFiles(failedFiles);
+        } else {
+          closePhotosDialog();
+        }
+
+        if (!saveResult.ok && failedFiles.length === 0) {
+          closePhotosDialog();
+        }
+      } catch (error) {
+        toast({
+          title: 'Erro',
+          description: formatErrorMessage(error, 'Falha ao enviar imagens.'),
+          variant: 'destructive',
+        });
+      } finally {
+        setIsUploading(false);
+      }
+
+      return;
+    }
+
     setIsUploading(true);
+
     try {
       const uploadResults = await Promise.allSettled(
         files.map((file) =>
@@ -217,57 +414,50 @@ const ManageGallery = () => {
 
       if (uploadedFiles.length === 0) {
         const firstError = uploadResults.find((result) => result.status === 'rejected')?.reason;
-        toast({
-          title: 'Erro',
-          description: firstError?.message || 'Falha ao enviar imagens.',
-          variant: 'destructive',
-        });
-        return;
+        throw new Error(firstError?.message || 'Falha ao enviar imagens.');
       }
 
       const albumToUpdate = albums.find((album) => album.id === currentAlbum.id);
       const existingCount = albumToUpdate?.images.length || 0;
-      const baseId = Date.now();
-      const newImages = uploadedFiles.map(({ file, upload }, index) =>
-        normalizeGalleryImage(
-          {
-            id: `${currentAlbum.id}-image-${baseId + index}`,
-            src: upload.publicUrl,
-            thumbSrc: upload.thumbUrl || upload.publicUrl,
+
+      try {
+        await createGalleryMediaBatch(
+          currentAlbum.id,
+          uploadedFiles.map(({ file, upload }, index) => ({
             path: upload.path,
             thumbPath: upload.thumbPath || null,
-            alt: file?.name || `${currentAlbum.title} - Foto ${existingCount + index + 1}`,
-          },
-          currentAlbum.title,
-          existingCount + index
-        )
-      );
-
-      const updatedGallery = albums.map((album) =>
-        album.id === currentAlbum.id
-          ? { ...album, images: [...album.images, ...newImages] }
-          : album
-      );
-
-      const saveResult = await persistGallery(
-        updatedGallery,
-        failedFiles.length === 0 ? `${newImages.length} fotos adicionadas ao album.` : ''
-      );
-
-      if (failedFiles.length > 0) {
-        toast({ title: 'Aviso', description: `${failedFiles.length} imagens falharam no upload.` });
-        setFiles(failedFiles);
-      } else {
-        closePhotosDialog();
+            srcUrl: upload.publicUrl,
+            thumbUrl: upload.thumbUrl || upload.publicUrl,
+            altText: file?.name || `${currentAlbum.title} - Foto ${existingCount + index + 1}`,
+            sortOrder: existingCount + index,
+          }))
+        );
+      } catch (error) {
+        await deleteStoragePaths(
+          uploadedFiles.flatMap(({ upload }) => [upload.path, upload.thumbPath]).filter(Boolean)
+        ).catch(() => {});
+        throw error;
       }
 
-      if (!saveResult.ok && failedFiles.length === 0) {
+      await loadAlbums();
+
+      if (failedFiles.length > 0) {
+        setFiles(failedFiles);
+        toast({
+          title: 'Aviso',
+          description: `${uploadedFiles.length} foto(s) adicionadas. ${failedFiles.length} falharam no upload.`,
+        });
+      } else {
         closePhotosDialog();
+        toast({
+          title: 'Sucesso!',
+          description: `${uploadedFiles.length} foto(s) adicionadas ao album.`,
+        });
       }
     } catch (error) {
       toast({
         title: 'Erro',
-        description: error?.message || 'Falha ao enviar imagens.',
+        description: formatErrorMessage(error, 'Falha ao enviar imagens.'),
         variant: 'destructive',
       });
     } finally {
@@ -280,20 +470,58 @@ const ManageGallery = () => {
     const photoToDelete = album?.images.find((photo) => photo.id === photoId);
     if (!photoToDelete) return;
 
-    if ((photoToDelete.path || photoToDelete.thumbPath) && isSupabaseReady) {
+    if (isUsingLegacyFallback) {
+      if ((photoToDelete.path || photoToDelete.thumbPath) && isSupabaseReady) {
+        try {
+          await deleteStoragePaths([photoToDelete.path, photoToDelete.thumbPath].filter(Boolean));
+        } catch (error) {
+          toast({ title: 'Aviso', description: 'Nao foi possivel remover o arquivo do storage.' });
+        }
+      }
+
+      const updatedGallery = albums.map((item) =>
+        item.id === albumId
+          ? { ...item, images: item.images.filter((photo) => photo.id !== photoId) }
+          : item
+      );
+      await persistLegacyGallery(updatedGallery, 'Foto removida.');
+      if (previewPhoto?.id === photoId) {
+        setPreviewPhoto(null);
+      }
+      return;
+    }
+
+    let storageDeleteFailed = false;
+    const storagePaths = [photoToDelete.path, photoToDelete.thumbPath, photoToDelete.mediumPath].filter(Boolean);
+
+    if (storagePaths.length > 0) {
       try {
-        await deleteStoragePaths([photoToDelete.path, photoToDelete.thumbPath].filter(Boolean));
+        await deleteStoragePaths(storagePaths);
       } catch (error) {
-        toast({ title: 'Aviso', description: 'Nao foi possivel remover o arquivo do storage.' });
+        storageDeleteFailed = true;
       }
     }
 
-    const updatedGallery = albums.map((item) =>
-      item.id === albumId
-        ? { ...item, images: item.images.filter((photo) => photo.id !== photoId) }
-        : item
-    );
-    await persistGallery(updatedGallery, 'Foto removida.');
+    try {
+      await deleteGalleryMedia(photoId);
+      await loadAlbums();
+      if (previewPhoto?.id === photoId) {
+        setPreviewPhoto(null);
+      }
+
+      toast({
+        title: storageDeleteFailed ? 'Aviso' : 'Sucesso!',
+        description: storageDeleteFailed
+          ? 'A foto foi removida da galeria, mas nao foi possivel excluir o arquivo do storage.'
+          : 'Foto removida.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatErrorMessage(error, 'Falha ao excluir foto.'),
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -350,116 +578,128 @@ const ManageGallery = () => {
                       Cancelar
                     </Button>
                   </DialogClose>
-                  <Button type="submit">Salvar</Button>
+                  <Button type="submit" disabled={isSavingAlbum}>
+                    {isSavingAlbum ? 'Salvando...' : 'Salvar'}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
         </div>
 
-        <div className="space-y-8">
-          {albums.map((album) => (
-            <motion.div key={album.id} layout className="bg-white p-6 rounded-lg shadow-md">
-              <div className="flex justify-between items-start gap-4 mb-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    {album.title} ({album.year})
-                  </h2>
-                  {album.community && <p className="text-sm text-gray-500">{album.community}</p>}
+        {isUsingLegacyFallback && (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            A galeria relacional nao esta sendo usada neste momento. O painel esta exibindo o modo legado.
+          </div>
+        )}
+
+        {loadingAlbums ? (
+          <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">Carregando galeria...</div>
+        ) : (
+          <div className="space-y-8">
+            {albums.map((album) => (
+              <motion.div key={album.id} layout className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex justify-between items-start gap-4 mb-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">
+                      {album.title} ({album.year})
+                    </h2>
+                    {album.community && <p className="text-sm text-gray-500">{album.community}</p>}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button variant="outline" size="sm" onClick={() => openPhotosDialog(album)}>
+                      <ImagePlus className="h-4 w-4 mr-2" />
+                      Adicionar Fotos
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => openAlbumDialog(album)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Isso excluira o album e TODAS as suas fotos. Essa acao nao pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteAlbum(album.id)}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            Sim, excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => openPhotosDialog(album)}>
-                    <ImagePlus className="h-4 w-4 mr-2" />
-                    Adicionar Fotos
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => openAlbumDialog(album)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Isso excluira o album e TODAS as suas fotos. Essa acao nao pode ser desfeita.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDeleteAlbum(album.id)}
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          Sim, excluir
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  <AnimatePresence>
+                    {album.images.map((photo) => (
+                      <motion.div
+                        key={photo.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        className="relative group cursor-zoom-in"
+                        onClick={() => setPreviewPhoto(photo)}
+                      >
+                        <img
+                          src={photo.thumbSrc || photo.src}
+                          className="w-full h-32 object-contain bg-white rounded-md"
+                          alt={photo.alt || album.title}
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir foto?</AlertDialogTitle>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Nao</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeletePhoto(album.id, photo.id)}>
+                                  Sim
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
+
+                {album.images.length === 0 && (
+                  <p className="text-center text-gray-500 py-4">Nenhuma foto neste album. Adicione algumas!</p>
+                )}
+              </motion.div>
+            ))}
+
+            {albums.length === 0 && (
+              <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
+                Nenhum album cadastrado ainda.
               </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                <AnimatePresence>
-                  {album.images.map((photo) => (
-                    <motion.div
-                      key={photo.id}
-                      layout
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.5 }}
-                      className="relative group cursor-zoom-in"
-                      onClick={() => setPreviewPhoto(photo)}
-                    >
-                      <img
-                        src={photo.thumbSrc || photo.src}
-                        className="w-full h-32 object-contain bg-white rounded-md"
-                        alt={photo.alt || album.title}
-                      />
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir foto?</AlertDialogTitle>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Nao</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeletePhoto(album.id, photo.id)}>
-                                Sim
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-
-              {album.images.length === 0 && (
-                <p className="text-center text-gray-500 py-4">Nenhuma foto neste album. Adicione algumas!</p>
-              )}
-            </motion.div>
-          ))}
-
-          {albums.length === 0 && (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
-              Nenhum album cadastrado ainda.
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         <Dialog
           open={isPhotosDialogOpen}
@@ -532,6 +772,9 @@ const ManageGallery = () => {
           }}
         >
           <DialogContent className="max-w-[95vw] w-auto p-2 bg-transparent border-none shadow-none">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Visualizar foto</DialogTitle>
+            </DialogHeader>
             {previewPhoto && (
               <img
                 src={previewPhoto.src}

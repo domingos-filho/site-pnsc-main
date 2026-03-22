@@ -190,6 +190,13 @@ Observacao: o login so funciona se o usuario tiver registro na tabela public.pro
 Sem Supabase configurado, o site continua usando armazenamento local do navegador para o `site_data` e fallback local para eventos pendentes.
 Se voce vinha da versao antiga da galeria, os dados legados em `paroquia_gallery_*` sao migrados para `site_data.gallery` ao abrir o site.
 
+## Galeria v2
+Para evoluir a galeria para busca, filtros e escala por evento, veja:
+
+- `docs/gallery-v2.md`
+- `supabase/gallery_v2_schema.sql`
+- `supabase/gallery_v2_backfill.sql`
+
 ## Publicar no GitHub
 ```bash
 git init

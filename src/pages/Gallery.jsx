@@ -1,16 +1,65 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useData } from '@/contexts/DataContext';
 import { normalizeGallery } from '@/lib/gallery';
+import { loadGalleryCollections } from '@/lib/galleryData';
+import { isSupabaseReady } from '@/lib/supabaseClient';
 
 const Gallery = () => {
   const { siteData, loading } = useData();
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [albums, setAlbums] = useState([]);
+  const [loadingGallery, setLoadingGallery] = useState(true);
+
+  const legacyAlbums = useMemo(() => normalizeGallery(siteData.gallery), [siteData.gallery]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAlbums = async () => {
+      if (loading) return;
+
+      if (!isSupabaseReady) {
+        if (isMounted) {
+          setAlbums(legacyAlbums);
+          setLoadingGallery(false);
+        }
+        return;
+      }
+
+      setLoadingGallery(true);
+      try {
+        const remoteAlbums = await loadGalleryCollections({ publishedOnly: true });
+        if (!isMounted) return;
+
+        if (remoteAlbums.length === 0 && legacyAlbums.length > 0) {
+          setAlbums(legacyAlbums);
+        } else {
+          setAlbums(remoteAlbums);
+        }
+      } catch (error) {
+        console.error('Falha ao carregar galeria publica', error);
+        if (isMounted) {
+          setAlbums(legacyAlbums);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingGallery(false);
+        }
+      }
+    };
+
+    void loadAlbums();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [legacyAlbums, loading]);
 
   const albumsByYear = useMemo(() => {
-    return normalizeGallery(siteData.gallery).reduce((acc, album) => {
+    return albums.reduce((acc, album) => {
       const year = album.year || 'Sem Ano';
       if (!acc[year]) {
         acc[year] = [];
@@ -18,9 +67,9 @@ const Gallery = () => {
       acc[year].push(album);
       return acc;
     }, {});
-  }, [siteData.gallery]);
+  }, [albums]);
 
-  if (loading) {
+  if (loading || loadingGallery) {
     return <div>Carregando...</div>;
   }
 
@@ -113,6 +162,9 @@ const Gallery = () => {
         }}
       >
         <DialogContent className="max-w-[95vw] w-auto p-2 bg-transparent border-none shadow-none">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Visualizar foto</DialogTitle>
+          </DialogHeader>
           {selectedPhoto && (
             <img
               src={selectedPhoto.src}

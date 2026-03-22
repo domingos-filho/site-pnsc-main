@@ -63,7 +63,7 @@ function App() {
               <Route
                 path="/dashboard/gallery"
                 element={
-                  <PrivateRoute requiredRole="member">
+                  <PrivateRoute requiredRole="secretary">
                     <ManageGallery />
                   </PrivateRoute>
                 }
