@@ -27,13 +27,11 @@ const ContactInfoCard = ({ icon, title, children }) => {
 const Contact = () => {
   const { toast } = useToast();
   const { siteData, loading } = useData();
-
-  if (loading) {
-    return <div>Carregando...</div>;
-  }
-
-  const { address, phone, email, whatsapp, officeHours, social, mapLat, mapLng, mapImageUrl } = siteData.contact;
   const [mapError, setMapError] = useState(false);
+  const [mapSourceIndex, setMapSourceIndex] = useState(0);
+
+  const { address, phone, email, whatsapp, officeHours, social, mapLat, mapLng, mapImageUrl } =
+    siteData.contact;
   const defaultCoords = { lat: -5.881957586566276, lng: -35.19923210144043 };
   const parseCoord = (value, fallback) => {
     const parsed = Number(String(value ?? '').replace(',', '.'));
@@ -53,13 +51,16 @@ const Contact = () => {
       )}`
     : '';
   const mapSources = [customMapImage, fallbackMapImageUrl, googleStaticMapUrl].filter(Boolean);
-  const [mapSourceIndex, setMapSourceIndex] = useState(0);
   const mapSrc = mapSources[mapSourceIndex];
 
   useEffect(() => {
     setMapError(false);
     setMapSourceIndex(0);
   }, [customMapImage, googleStaticMapUrl, fallbackMapImageUrl]);
+
+  if (loading) {
+    return <div>Carregando...</div>;
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault();

@@ -201,10 +201,6 @@ const NewsSection = () => {
       return dateB - dateA;
     });
 
-  if (items.length === 0) {
-    return null;
-  }
-
   const formatDate = (value) => {
     if (!value) return '';
     const date = new Date(value);
@@ -224,6 +220,10 @@ const NewsSection = () => {
     const timer = setInterval(() => scrollByAmount(1), intervalMs);
     return () => clearInterval(timer);
   }, [items.length, scrollByAmount, settings.autoplay, settings.intervalSeconds]);
+
+  if (items.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -396,4 +396,3 @@ const Home = () => {
 };
 
 export default Home;
-
