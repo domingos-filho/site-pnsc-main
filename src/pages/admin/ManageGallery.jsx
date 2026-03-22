@@ -48,6 +48,20 @@ const showLegacySyncWarning = (toast) => {
 
 const formatErrorMessage = (error, fallbackMessage) => error?.message || fallbackMessage;
 
+const GALLERY_UPLOAD_OPTIONS = {
+  storeOriginal: false,
+  generateThumbnail: true,
+  thumbnailMaxWidth: 480,
+  thumbnailMaxHeight: 480,
+  thumbnailQuality: 0.8,
+  generateMedium: true,
+  mediumMaxWidth: 1600,
+  mediumMaxHeight: 1600,
+  mediumQuality: 0.86,
+};
+
+const uniqueStoragePaths = (paths = []) => [...new Set(paths.filter(Boolean))];
+
 const ManageGallery = () => {
   const { toast } = useToast();
   const { siteData, updateSiteData } = useData();
@@ -251,9 +265,9 @@ const ManageGallery = () => {
     if (!albumToDelete) return;
 
     if (isUsingLegacyFallback) {
-      const storagePaths = (albumToDelete.images || [])
-        .flatMap((photo) => [photo.path, photo.thumbPath])
-        .filter(Boolean);
+      const storagePaths = uniqueStoragePaths(
+        (albumToDelete.images || []).flatMap((photo) => [photo.path, photo.thumbPath, photo.mediumPath])
+      );
 
       if (storagePaths.length > 0 && isSupabaseReady) {
         try {
@@ -268,9 +282,9 @@ const ManageGallery = () => {
       return;
     }
 
-    const storagePaths = (albumToDelete.images || [])
-      .flatMap((photo) => [photo.path, photo.thumbPath, photo.mediumPath])
-      .filter(Boolean);
+    const storagePaths = uniqueStoragePaths(
+      (albumToDelete.images || []).flatMap((photo) => [photo.path, photo.thumbPath, photo.mediumPath])
+    );
 
     if (storagePaths.length > 0) {
       try {
@@ -309,9 +323,7 @@ const ManageGallery = () => {
             uploadImageFile({
               file,
               folder: `gallery/${currentAlbum.id}`,
-              generateThumbnail: true,
-              thumbnailMaxWidth: 900,
-              thumbnailMaxHeight: 900,
+              ...GALLERY_UPLOAD_OPTIONS,
             })
           )
         );
@@ -341,9 +353,11 @@ const ManageGallery = () => {
         const baseId = Date.now();
         const newImages = uploadedFiles.map(({ file, upload }, index) => ({
           id: `${currentAlbum.id}-image-${baseId + index}`,
-          src: upload.publicUrl,
-          thumbSrc: upload.thumbUrl || upload.publicUrl,
-          path: upload.path,
+          src: upload.mediumUrl || upload.publicUrl,
+          mediumSrc: upload.mediumUrl || upload.publicUrl,
+          thumbSrc: upload.thumbUrl || upload.mediumUrl || upload.publicUrl,
+          path: upload.originalPath || null,
+          mediumPath: upload.mediumPath || null,
           thumbPath: upload.thumbPath || null,
           alt: file?.name || `${currentAlbum.title} - Foto ${existingCount + index + 1}`,
         }));
@@ -390,9 +404,7 @@ const ManageGallery = () => {
           uploadImageFile({
             file,
             folder: `gallery/${currentAlbum.id}`,
-            generateThumbnail: true,
-            thumbnailMaxWidth: 900,
-            thumbnailMaxHeight: 900,
+            ...GALLERY_UPLOAD_OPTIONS,
           })
         )
       );
@@ -424,17 +436,25 @@ const ManageGallery = () => {
         await createGalleryMediaBatch(
           currentAlbum.id,
           uploadedFiles.map(({ file, upload }, index) => ({
-            path: upload.path,
+            path: upload.originalPath || null,
+            mediumPath: upload.mediumPath || null,
             thumbPath: upload.thumbPath || null,
-            srcUrl: upload.publicUrl,
-            thumbUrl: upload.thumbUrl || upload.publicUrl,
+            srcUrl: upload.mediumUrl || upload.publicUrl,
+            thumbUrl: upload.thumbUrl || upload.mediumUrl || upload.publicUrl,
             altText: file?.name || `${currentAlbum.title} - Foto ${existingCount + index + 1}`,
             sortOrder: existingCount + index,
           }))
         );
       } catch (error) {
         await deleteStoragePaths(
-          uploadedFiles.flatMap(({ upload }) => [upload.path, upload.thumbPath]).filter(Boolean)
+          uniqueStoragePaths(
+            uploadedFiles.flatMap(({ upload }) => [
+              upload.originalPath,
+              upload.path,
+              upload.thumbPath,
+              upload.mediumPath,
+            ])
+          )
         ).catch(() => {});
         throw error;
       }
@@ -471,9 +491,11 @@ const ManageGallery = () => {
     if (!photoToDelete) return;
 
     if (isUsingLegacyFallback) {
-      if ((photoToDelete.path || photoToDelete.thumbPath) && isSupabaseReady) {
+      if ((photoToDelete.path || photoToDelete.thumbPath || photoToDelete.mediumPath) && isSupabaseReady) {
         try {
-          await deleteStoragePaths([photoToDelete.path, photoToDelete.thumbPath].filter(Boolean));
+          await deleteStoragePaths(
+            uniqueStoragePaths([photoToDelete.path, photoToDelete.thumbPath, photoToDelete.mediumPath])
+          );
         } catch (error) {
           toast({ title: 'Aviso', description: 'Nao foi possivel remover o arquivo do storage.' });
         }
@@ -492,7 +514,7 @@ const ManageGallery = () => {
     }
 
     let storageDeleteFailed = false;
-    const storagePaths = [photoToDelete.path, photoToDelete.thumbPath, photoToDelete.mediumPath].filter(Boolean);
+    const storagePaths = uniqueStoragePaths([photoToDelete.path, photoToDelete.thumbPath, photoToDelete.mediumPath]);
 
     if (storagePaths.length > 0) {
       try {
@@ -728,7 +750,7 @@ const ManageGallery = () => {
                 ) : (
                   <p>Arraste e solte as imagens aqui, ou clique para selecionar</p>
                 )}
-                <p className="text-xs text-gray-500 mt-2">As imagens serao redimensionadas para web</p>
+                <p className="text-xs text-gray-500 mt-2">As imagens serao salvas em versoes thumb e media para web</p>
               </div>
 
               <div className="max-h-96 overflow-y-auto pr-2 space-y-2">
@@ -777,7 +799,7 @@ const ManageGallery = () => {
             </DialogHeader>
             {previewPhoto && (
               <img
-                src={previewPhoto.src}
+                src={previewPhoto.mediumSrc || previewPhoto.src}
                 alt={previewPhoto.alt || 'Foto ampliada'}
                 className="max-h-[85vh] max-w-[95vw] object-contain rounded-md bg-white"
               />

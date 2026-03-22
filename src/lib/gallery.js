@@ -29,25 +29,37 @@ export const normalizeGalleryImage = (image, albumTitle = 'Album', index = 0) =>
     return {
       id: `${slugify(albumTitle) || 'album'}-image-${index + 1}`,
       src: image,
+      mediumSrc: image,
       thumbSrc: image,
       alt: `${albumTitle} - Foto ${index + 1}`,
       path: null,
+      mediumPath: null,
       thumbPath: null,
     };
   }
 
-  const src = getPublicStorageUrl(image.path) || image.src || image.url || '';
+  const mediumSrc =
+    getPublicStorageUrl(image.mediumPath) ||
+    image.mediumSrc ||
+    image.mediumUrl ||
+    getPublicStorageUrl(image.path) ||
+    image.src ||
+    image.url ||
+    '';
+  const src = mediumSrc;
   if (!src) return null;
 
   const thumbSrc =
     getPublicStorageUrl(image.thumbPath) || image.thumbSrc || image.thumbUrl || src;
 
   return {
-    id: image.id || image.path || image.thumbPath || src,
+    id: image.id || image.mediumPath || image.path || image.thumbPath || src,
     src,
+    mediumSrc,
     thumbSrc,
     alt: image.alt || `${albumTitle} - Foto ${index + 1}`,
     path: image.path || null,
+    mediumPath: image.mediumPath || null,
     thumbPath: image.thumbPath || null,
   };
 };
@@ -94,6 +106,7 @@ const buildImageKey = (image) => {
 
   return [
     normalizedImage.path,
+    normalizedImage.mediumPath,
     normalizedImage.thumbPath,
     normalizedImage.src,
     normalizedImage.id,
@@ -159,9 +172,11 @@ export const buildGalleryFromLegacyStorage = ({ albums = [], photos = [] } = {})
             .map((photo) => ({
               id: photo?.id,
               src: photo?.url || photo?.src,
+              mediumSrc: photo?.mediumUrl || photo?.mediumSrc,
               thumbSrc: photo?.thumbUrl || photo?.thumbSrc,
               alt: photo?.alt,
               path: photo?.path || null,
+              mediumPath: photo?.mediumPath || null,
               thumbPath: photo?.thumbPath || null,
             })),
         },

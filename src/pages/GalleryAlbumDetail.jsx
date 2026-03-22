@@ -215,7 +215,7 @@ const GalleryAlbumDetail = () => {
           </DialogHeader>
           {selectedPhoto && (
             <img
-              src={selectedPhoto.src}
+              src={selectedPhoto.mediumSrc || selectedPhoto.src}
               alt={selectedPhoto.alt || album.title}
               className="max-h-[85vh] max-w-[95vw] object-contain rounded-md bg-white"
             />
