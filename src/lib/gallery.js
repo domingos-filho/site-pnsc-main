@@ -1,6 +1,6 @@
 import { getPublicStorageUrl } from '@/lib/supabaseClient';
 
-const slugify = (value) =>
+export const slugify = (value) =>
   String(value || '')
     .normalize('NFKD')
     .replace(/[^\w\s-]+/g, '')
@@ -58,11 +58,23 @@ export const normalizeGalleryAlbum = (album, fallbackIndex = 0) => {
     .map((image, index) => normalizeGalleryImage(image, title, index))
     .filter(Boolean);
 
+  const year = album?.year ?? '';
+  const community = normalizeText(album?.community);
+
   return {
     id: album?.id || buildAlbumFallbackId(album, fallbackIndex),
+    slug: normalizeText(album?.slug) || slugify([title, year, community].filter(Boolean).join('-')),
     title,
-    year: album?.year ?? '',
-    community: normalizeText(album?.community),
+    year,
+    community,
+    summary: normalizeText(album?.summary),
+    description: normalizeText(album?.description),
+    category: normalizeText(album?.category),
+    tags: Array.isArray(album?.tags) ? album.tags.map((tag) => normalizeText(tag)).filter(Boolean) : [],
+    eventDate: normalizeText(album?.eventDate || album?.event_date),
+    endDate: normalizeText(album?.endDate || album?.end_date),
+    photoCount: Number(album?.photoCount || images.length || 0),
+    isPublished: album?.isPublished !== false,
     images,
   };
 };

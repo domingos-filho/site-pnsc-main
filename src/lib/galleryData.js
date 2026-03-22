@@ -159,7 +159,55 @@ const ensureSupabase = () => {
   }
 };
 
-export const loadGalleryCollections = async ({ publishedOnly = false } = {}) => {
+const fetchGalleryMedia = async (collections = []) => {
+  const collectionIds = collections.map((collection) => collection.id).filter(Boolean);
+  if (collectionIds.length === 0) {
+    return [];
+  }
+
+  const { data: mediaRows, error: mediaError } = await withTimeout(
+    supabase
+      .from(GALLERY_MEDIA_TABLE)
+      .select(MEDIA_SELECT_FIELDS)
+      .in('collection_id', collectionIds)
+      .order('collection_id', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
+    REQUEST_TIMEOUT_MS,
+    'Tempo limite ao carregar fotos da galeria.'
+  );
+
+  if (mediaError) {
+    throw mediaError;
+  }
+
+  return mediaRows || [];
+};
+
+const attachMediaToCollections = (collections, mediaRows = []) => {
+  const collectionIds = collections.map((collection) => collection.id);
+  const titleByCollection = new Map(collections.map((collection) => [collection.id, collection.title]));
+  const mediaByCollection = new Map(collectionIds.map((id) => [id, []]));
+
+  mediaRows.forEach((row) => {
+    const currentMedia = mediaByCollection.get(row.collection_id) || [];
+    const image = normalizeMediaRow(row, titleByCollection.get(row.collection_id), currentMedia.length);
+
+    if (image) {
+      currentMedia.push(image);
+      mediaByCollection.set(row.collection_id, currentMedia);
+    }
+  });
+
+  return sortCollections(
+    collections.map((collection) => ({
+      ...collection,
+      images: mediaByCollection.get(collection.id) || [],
+    }))
+  );
+};
+
+export const loadGalleryCollections = async ({ publishedOnly = false, includeMedia = true } = {}) => {
   ensureSupabase();
 
   let collectionsQuery = supabase
@@ -183,48 +231,52 @@ export const loadGalleryCollections = async ({ publishedOnly = false } = {}) => 
     throw collectionsError;
   }
 
-  const collections = (collectionRows || []).map(normalizeCollectionRow);
-  if (collections.length === 0) {
-    return [];
+  const collections = sortCollections((collectionRows || []).map(normalizeCollectionRow));
+  if (!includeMedia || collections.length === 0) {
+    return collections;
   }
 
-  const collectionIds = collections.map((collection) => collection.id);
-  const titleByCollection = new Map(collections.map((collection) => [collection.id, collection.title]));
+  const mediaRows = await fetchGalleryMedia(collections);
+  return attachMediaToCollections(collections, mediaRows);
+};
 
-  const { data: mediaRows, error: mediaError } = await withTimeout(
-    supabase
-      .from(GALLERY_MEDIA_TABLE)
-      .select(MEDIA_SELECT_FIELDS)
-      .in('collection_id', collectionIds)
-      .order('collection_id', { ascending: true })
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: true }),
+export const loadGalleryCollectionBySlug = async (slug, { publishedOnly = false } = {}) => {
+  ensureSupabase();
+
+  const normalizedSlug = String(slug || '').trim();
+  if (!normalizedSlug) {
+    return null;
+  }
+
+  let collectionQuery = supabase
+    .from(GALLERY_COLLECTIONS_TABLE)
+    .select(COLLECTION_SELECT_FIELDS)
+    .eq('slug', normalizedSlug)
+    .limit(1)
+    .maybeSingle();
+
+  if (publishedOnly) {
+    collectionQuery = collectionQuery.eq('is_published', true);
+  }
+
+  const { data, error } = await withTimeout(
+    collectionQuery,
     REQUEST_TIMEOUT_MS,
-    'Tempo limite ao carregar fotos da galeria.'
+    'Tempo limite ao carregar album da galeria.'
   );
 
-  if (mediaError) {
-    throw mediaError;
+  if (error) {
+    throw error;
   }
 
-  const mediaByCollection = new Map(collectionIds.map((id) => [id, []]));
+  if (!data) {
+    return null;
+  }
 
-  (mediaRows || []).forEach((row) => {
-    const currentMedia = mediaByCollection.get(row.collection_id) || [];
-    const image = normalizeMediaRow(row, titleByCollection.get(row.collection_id), currentMedia.length);
-
-    if (image) {
-      currentMedia.push(image);
-      mediaByCollection.set(row.collection_id, currentMedia);
-    }
-  });
-
-  return sortCollections(
-    collections.map((collection) => ({
-      ...collection,
-      images: mediaByCollection.get(collection.id) || [],
-    }))
-  );
+  const collection = normalizeCollectionRow(data);
+  const mediaRows = await fetchGalleryMedia([collection]);
+  const [resolvedCollection] = attachMediaToCollections([collection], mediaRows);
+  return resolvedCollection || null;
 };
 
 export const createGalleryCollection = async (input) => {
