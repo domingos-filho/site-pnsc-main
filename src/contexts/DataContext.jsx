@@ -11,6 +11,36 @@ const DataContext = createContext();
 const LOCAL_STORAGE_KEY = 'paroquia_site_data';
 const LEGACY_GALLERY_ALBUMS_KEY = 'paroquia_gallery_albums';
 const LEGACY_GALLERY_PHOTOS_KEY = 'paroquia_gallery_photos';
+const LEGACY_DEMO_GALLERY = [
+  {
+    id: 1,
+    title: 'Festa do Padroeiro 2025',
+    year: 2025,
+    community: 'Matriz',
+    images: [
+      {
+        src: 'https://images.unsplash.com/photo-1546852493-34545a425b1b?q=80&w=2070&auto=format&fit=crop',
+        alt: 'Imagem 1',
+      },
+      {
+        src: 'https://images.unsplash.com/photo-1516981843848-d34bf4153912?q=80&w=2070&auto=format&fit=crop',
+        alt: 'Imagem 2',
+      },
+    ],
+  },
+  {
+    id: 2,
+    title: 'Semana Santa 2024',
+    year: 2024,
+    community: 'Nossa Senhora das Graças',
+    images: [
+      {
+        src: 'https://images.unsplash.com/photo-1508385932222-cd395c28a927?q=80&w=2070&auto=format&fit=crop',
+        alt: 'Imagem 3',
+      },
+    ],
+  },
+];
 
 export const useData = () => {
   const context = useContext(DataContext);
@@ -285,38 +315,15 @@ const initialSiteData = {
     },
   ],
   gallery: [
-    {
-      id: 1,
-      title: 'Festa do Padroeiro 2025',
-      year: 2025,
-      community: 'Matriz',
-      images: [
-        {
-          src: 'https://images.unsplash.com/photo-1546852493-34545a425b1b?q=80&w=2070&auto=format&fit=crop',
-          alt: 'Imagem 1',
-        },
-        {
-          src: 'https://images.unsplash.com/photo-1516981843848-d34bf4153912?q=80&w=2070&auto=format&fit=crop',
-          alt: 'Imagem 2',
-        },
-      ],
-    },
-    {
-      id: 2,
-      title: 'Semana Santa 2024',
-      year: 2024,
-      community: 'Nossa Senhora das Graças',
-      images: [
-        {
-          src: 'https://images.unsplash.com/photo-1508385932222-cd395c28a927?q=80&w=2070&auto=format&fit=crop',
-          alt: 'Imagem 3',
-        },
-      ],
-    },
-  ],
+    ],
 };
 
 const serializeGallery = (gallery) => JSON.stringify(normalizeGallery(gallery));
+const serializeDemoGallery = serializeGallery(LEGACY_DEMO_GALLERY);
+const sanitizeGallery = (gallery) => {
+  const normalizedGallery = normalizeGallery(gallery);
+  return serializeGallery(normalizedGallery) === serializeDemoGallery ? [] : normalizedGallery;
+};
 
 const normalizeSiteData = (rawData = initialSiteData) => ({
   ...initialSiteData,
@@ -361,7 +368,7 @@ const normalizeSiteData = (rawData = initialSiteData) => ({
   communities: Array.isArray(rawData.communities) ? rawData.communities : initialSiteData.communities,
   team: Array.isArray(rawData.team) ? rawData.team : initialSiteData.team,
   events: Array.isArray(rawData.events) ? rawData.events : initialSiteData.events,
-  gallery: normalizeGallery(rawData.gallery ?? initialSiteData.gallery),
+  gallery: sanitizeGallery(rawData.gallery ?? initialSiteData.gallery),
 });
 
 const hydrateSiteData = (rawData = initialSiteData) => {

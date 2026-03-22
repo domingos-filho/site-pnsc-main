@@ -1,3 +1,5 @@
+import { getPublicStorageUrl } from '@/lib/supabaseClient';
+
 const slugify = (value) =>
   String(value || '')
     .normalize('NFKD')
@@ -34,13 +36,16 @@ export const normalizeGalleryImage = (image, albumTitle = 'Album', index = 0) =>
     };
   }
 
-  const src = image.src || image.url || '';
+  const src = getPublicStorageUrl(image.path) || image.src || image.url || '';
   if (!src) return null;
+
+  const thumbSrc =
+    getPublicStorageUrl(image.thumbPath) || image.thumbSrc || image.thumbUrl || src;
 
   return {
     id: image.id || image.path || image.thumbPath || src,
     src,
-    thumbSrc: image.thumbSrc || image.thumbUrl || src,
+    thumbSrc,
     alt: image.alt || `${albumTitle} - Foto ${index + 1}`,
     path: image.path || null,
     thumbPath: image.thumbPath || null,
