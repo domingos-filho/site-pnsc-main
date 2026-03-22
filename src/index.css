@@ -2,16 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-  font-family: 'Priestacy';
-  src: url('/fonts/Priestacy.woff2') format('woff2'),
-    url('/fonts/Priestacy.woff') format('woff'),
-    url('/fonts/Priestacy.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 @layer base {
   :root {
         --background: 0 0% 100%;
@@ -49,7 +39,7 @@
     font-family: 'Sacramento', cursive;
   }
   .font-priestacy {
-    font-family: 'Priestacy', 'Priestacy Font', serif;
+    font-family: 'Sacramento', 'Times New Roman', serif;
   }
 }
     

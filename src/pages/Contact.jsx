@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Phone, Mail, MapPin, Clock, Send, Instagram, Facebook } from 'lucide-react';
@@ -24,52 +24,36 @@ const ContactInfoCard = ({ icon, title, children }) => {
   );
 };
 
+const parseCoord = (value, fallback) => {
+  const parsed = Number(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const Contact = () => {
   const { toast } = useToast();
   const { siteData, loading } = useData();
-  const [mapError, setMapError] = useState(false);
-  const [mapSourceIndex, setMapSourceIndex] = useState(0);
-
-  const { address, phone, email, whatsapp, officeHours, social, mapLat, mapLng, mapImageUrl } =
-    siteData.contact;
-  const defaultCoords = { lat: -5.881957586566276, lng: -35.19923210144043 };
-  const parseCoord = (value, fallback) => {
-    const parsed = Number(String(value ?? '').replace(',', '.'));
-    return Number.isFinite(parsed) ? parsed : fallback;
-  };
-  const resolvedLat = parseCoord(mapLat, defaultCoords.lat);
-  const resolvedLng = parseCoord(mapLng, defaultCoords.lng);
-  const fallbackMapImageUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${resolvedLat},${resolvedLng}&zoom=16&size=1200x400&maptype=mapnik&markers=${resolvedLat},${resolvedLng},red-pushpin`;
-  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${resolvedLat},${resolvedLng}`;
-  const wazeUrl = `https://waze.com/ul?ll=${resolvedLat},${resolvedLng}&navigate=yes`;
-  const osmUrl = `https://www.openstreetmap.org/?mlat=${resolvedLat}&mlon=${resolvedLng}#map=17/${resolvedLat}/${resolvedLng}`;
-  const customMapImage = mapImageUrl?.trim() || '';
-  const googleMapsApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
-  const googleStaticMapUrl = googleMapsApiKey
-    ? `https://maps.googleapis.com/maps/api/staticmap?center=${resolvedLat},${resolvedLng}&zoom=16&size=640x360&scale=2&maptype=roadmap&markers=color:red%7C${resolvedLat},${resolvedLng}&key=${encodeURIComponent(
-        googleMapsApiKey
-      )}`
-    : '';
-  const mapSources = [customMapImage, fallbackMapImageUrl, googleStaticMapUrl].filter(Boolean);
-  const mapSrc = mapSources[mapSourceIndex];
-
-  useEffect(() => {
-    setMapError(false);
-    setMapSourceIndex(0);
-  }, [customMapImage, googleStaticMapUrl, fallbackMapImageUrl]);
 
   if (loading) {
     return <div>Carregando...</div>;
   }
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const { address, phone, email, whatsapp, officeHours, social, mapLat, mapLng } = siteData.contact;
+  const defaultCoords = { lat: -5.881957586566276, lng: -35.19923210144043 };
+  const resolvedLat = parseCoord(mapLat, defaultCoords.lat);
+  const resolvedLng = parseCoord(mapLng, defaultCoords.lng);
+  const encodedAddress = encodeURIComponent(address || `${resolvedLat},${resolvedLng}`);
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+  const wazeUrl = `https://waze.com/ul?ll=${resolvedLat}%2C${resolvedLng}&navigate=yes&zoom=17`;
+  const wazeEmbedUrl = `https://embed.waze.com/iframe?zoom=17&lat=${resolvedLat}&lon=${resolvedLng}&pin=1`;
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
     toast({
-      title: 'Mensagem não enviada!',
+      title: 'Mensagem nao enviada!',
       description:
-        'Este formulário é apenas demonstrativo. A funcionalidade de envio será implementada em breve.',
+        'Este formulario e apenas demonstrativo. A funcionalidade de envio sera implementada em breve.',
     });
-    e.target.reset();
+    event.target.reset();
   };
 
   const openWhatsApp = () => {
@@ -79,10 +63,10 @@ const Contact = () => {
   return (
     <>
       <Helmet>
-        <title>Contato - Paróquia de Nossa Senhora da Conceição</title>
+        <title>Contato - Paroquia de Nossa Senhora da Conceicao</title>
         <meta
           name="description"
-          content="Entre em contato com a Paróquia de Nossa Senhora da Conceição. Encontre nosso endereço, telefone e horários."
+          content="Entre em contato com a Paroquia de Nossa Senhora da Conceicao. Encontre nosso endereco, telefone e horarios."
         />
       </Helmet>
 
@@ -102,7 +86,7 @@ const Contact = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2 }}
           >
-            Estamos aqui para ajudar. Entre em contato ou faça-nos uma visita.
+            Estamos aqui para ajudar. Entre em contato ou faca-nos uma visita.
           </motion.p>
         </header>
 
@@ -114,7 +98,7 @@ const Contact = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <ContactInfoCard icon={MapPin} title="Nosso Endereço">
+              <ContactInfoCard icon={MapPin} title="Nosso Endereco">
                 {address}
               </ContactInfoCard>
               <ContactInfoCard icon={Phone} title="Telefone">
@@ -190,27 +174,13 @@ const Contact = () => {
         </main>
 
         <div className="w-full h-80 bg-gray-100">
-          {mapError ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4 text-sm text-gray-500">
-              <p>Mapa indisponível na rede atual.</p>
-              <p className="mt-1">{address}</p>
-            </div>
-          ) : (
-            <img
-              src={mapSrc}
-              alt="Mapa da Paróquia"
-              className="w-full h-full object-cover"
-              loading="lazy"
-              onError={() => {
-                const nextIndex = mapSourceIndex + 1;
-                if (nextIndex < mapSources.length) {
-                  setMapSourceIndex(nextIndex);
-                  return;
-                }
-                setMapError(true);
-              }}
-            />
-          )}
+          <iframe
+            title="Mapa da Paroquia"
+            src={wazeEmbedUrl}
+            className="w-full h-full border-0"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
         </div>
         <div className="bg-white">
           <div className="container mx-auto px-4 py-4">
@@ -220,9 +190,6 @@ const Contact = () => {
               </a>
               <a href={wazeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
                 Abrir no Waze
-              </a>
-              <a href={osmUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
-                Abrir no OpenStreetMap
               </a>
             </div>
           </div>

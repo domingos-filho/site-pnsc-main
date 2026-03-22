@@ -178,6 +178,24 @@ const Shortcuts = () => {
   );
 };
 
+const parseCalendarDate = (value, { endOfDay = false } = {}) => {
+  if (!value) return null;
+
+  const rawValue = String(value).trim();
+  if (!rawValue) return null;
+
+  const dateOnlyMatch = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return endOfDay
+      ? new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999)
+      : new Date(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0);
+  }
+
+  const parsedDate = new Date(rawValue);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
 const NewsSection = () => {
   const { siteData } = useData();
   const [selectedNews, setSelectedNews] = useState(null);
@@ -187,8 +205,8 @@ const NewsSection = () => {
   const settings = siteData.home.newsSettings || { autoplay: true, intervalSeconds: 6 };
   const items = (siteData.home.news || [])
     .filter((item) => {
-      const startAt = item.startAt ? new Date(item.startAt) : null;
-      const endAt = item.endAt ? new Date(item.endAt) : null;
+      const startAt = parseCalendarDate(item.startAt);
+      const endAt = parseCalendarDate(item.endAt, { endOfDay: true });
       if (startAt && now < startAt) return false;
       if (endAt && now > endAt) return false;
       return true;
@@ -196,15 +214,15 @@ const NewsSection = () => {
     .sort((a, b) => {
       const pinDiff = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
       if (pinDiff !== 0) return pinDiff;
-      const dateA = a.date ? new Date(a.date) : new Date(0);
-      const dateB = b.date ? new Date(b.date) : new Date(0);
+      const dateA = parseCalendarDate(a.date) || new Date(0);
+      const dateB = parseCalendarDate(b.date) || new Date(0);
       return dateB - dateA;
     });
 
   const formatDate = (value) => {
     if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
+    const date = parseCalendarDate(value);
+    if (!date) return value;
     return date.toLocaleDateString('pt-BR');
   };
 
