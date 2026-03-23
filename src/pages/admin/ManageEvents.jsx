@@ -1,13 +1,36 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Plus, Edit, Trash2, Calendar, Clock, Shield, Users, RefreshCw } from 'lucide-react';
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Shield,
+  Users,
+  RefreshCw,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { useData } from '@/contexts/DataContext';
+import {
+  addDays,
+  eventOccursOnDate,
+  formatDateKey,
+  formatMonthKey,
+  formatMonthLabel,
+  formatWeekdayLabel,
+  getMonthGrid,
+  getWeekDays,
+  isSameDate,
+} from '@/lib/calendarView';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +57,8 @@ import {
   loadAdminCalendarData,
   updateCalendarEvent,
 } from '@/lib/calendarData';
+
+const CALENDAR_WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
 const STATUS_OPTIONS = [
   { value: 'pending_approval', label: 'Pendente' },
@@ -163,6 +188,34 @@ const formatEventDateLabel = (event) => {
   return `${start.toLocaleString('pt-BR')} ate ${end.toLocaleString('pt-BR')}`;
 };
 
+const formatEventTimeSummary = (event) => {
+  if (event.isAllDay) return 'Dia inteiro';
+
+  const start = new Date(event.startsAt);
+  const end = new Date(event.endsAt);
+
+  return `${start.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })} - ${end.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+};
+
+const formatSelectedDayLabel = (dateKey) => {
+  if (!dateKey) return 'Selecione um dia';
+
+  return new Date(`${dateKey}T00:00:00`).toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
+const sortEventsByStart = (left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime();
+
 const getStatusClasses = (status) => {
   switch (status) {
     case 'confirmed':
@@ -190,9 +243,14 @@ const getVisibilityClasses = (visibility) => {
 const ManageEvents = () => {
   const { toast } = useToast();
   const { siteData } = useData();
+  const today = new Date();
   const [events, setEvents] = useState([]);
   const [eventTypes, setEventTypes] = useState([]);
   const [resources, setResources] = useState([]);
+  const [activeView, setActiveView] = useState('list');
+  const [currentMonth, setCurrentMonth] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(formatDateKey(today));
+  const [weekAnchor, setWeekAnchor] = useState(today);
   const [filters, setFilters] = useState({
     search: '',
     status: 'all',
@@ -284,6 +342,56 @@ const ManageEvents = () => {
     }),
     [events]
   );
+
+  const monthGrid = useMemo(() => getMonthGrid(currentMonth), [currentMonth]);
+
+  const monthEventsByDate = useMemo(() => {
+    return monthGrid.reduce((accumulator, day) => {
+      if (!day) return accumulator;
+
+      const dateKey = formatDateKey(day);
+      const dayEvents = filteredEvents.filter((event) => eventOccursOnDate(event, day)).sort(sortEventsByStart);
+
+      if (dayEvents.length > 0) {
+        accumulator[dateKey] = dayEvents;
+      }
+
+      return accumulator;
+    }, {});
+  }, [filteredEvents, monthGrid]);
+
+  const selectedDateEvents = useMemo(() => monthEventsByDate[selectedDate] || [], [monthEventsByDate, selectedDate]);
+
+  const weekDays = useMemo(() => getWeekDays(weekAnchor), [weekAnchor]);
+
+  const weeklyRows = useMemo(() => {
+    const rows = [
+      { id: '__unassigned__', name: 'Sem espaco vinculado' },
+      ...resources.map((resource) => ({
+        id: resource.id,
+        name: resource.name,
+      })),
+    ];
+
+    return rows.map((row) => ({
+      ...row,
+      days: weekDays.map((day) => ({
+        dateKey: formatDateKey(day),
+        events: filteredEvents
+          .filter((event) => {
+            const matchesResource =
+              row.id === '__unassigned__' ? !event.resourceId : String(event.resourceId) === String(row.id);
+            return matchesResource && eventOccursOnDate(event, day);
+          })
+          .sort(sortEventsByStart),
+      })),
+    }));
+  }, [filteredEvents, resources, weekDays]);
+
+  const weekRangeLabel = useMemo(() => {
+    if (weekDays.length === 0) return '';
+    return `${weekDays[0].toLocaleDateString('pt-BR')} ate ${weekDays[6].toLocaleDateString('pt-BR')}`;
+  }, [weekDays]);
 
   const openDialog = (event = null) => {
     setCurrentEvent(event);
@@ -398,6 +506,19 @@ const ManageEvents = () => {
     }
   };
 
+  const handleMonthShift = (delta) => {
+    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
+    setCurrentMonth(nextMonth);
+
+    if (formatMonthKey(selectedDate) !== formatMonthKey(nextMonth)) {
+      setSelectedDate(formatDateKey(nextMonth));
+    }
+  };
+
+  const handleWeekShift = (delta) => {
+    setWeekAnchor((prev) => addDays(prev, delta * 7));
+  };
+
   return (
     <>
       <Helmet>
@@ -509,95 +630,293 @@ const ManageEvents = () => {
           </div>
         </div>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Evento</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Data</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Espaco</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Tipo</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Visibilidade</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Acoes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-sm text-gray-500">
-                      Carregando agenda v2...
-                    </td>
-                  </tr>
-                ) : filteredEvents.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-sm text-gray-500">
-                      Nenhum evento encontrado com os filtros atuais.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredEvents.map((event) => (
-                    <tr key={event.id}>
-                      <td className="px-6 py-4 align-top">
-                        <div className="font-semibold text-gray-900">{event.title}</div>
-                        <div className="text-sm text-gray-500">
-                          {[event.community, event.eventTypeName].filter(Boolean).join(' / ') || 'Sem classificacao'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-gray-600">{formatEventDateLabel(event)}</td>
-                      <td className="px-6 py-4 align-top text-sm text-gray-600">
-                        {event.resourceName || event.locationText || 'Sem espaco vinculado'}
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-gray-600">{event.eventTypeName || 'Sem tipo'}</td>
-                      <td className="px-6 py-4 align-top">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(event.status)}`}>
-                          {STATUS_OPTIONS.find((option) => option.value === event.status)?.label || event.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 align-top">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getVisibilityClasses(event.visibility)}`}>
-                          {VISIBILITY_OPTIONS.find((option) => option.value === event.visibility)?.label || event.visibility}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 align-top text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => openDialog(event)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir evento?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Essa acao removera o evento e seus vinculos de espaco da agenda v2.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-red-600 hover:bg-red-700"
-                                  onClick={() => handleDeleteEvent(event.id)}
-                                >
-                                  Excluir
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </td>
+        <Tabs value={activeView} onValueChange={setActiveView}>
+          <TabsList className="w-full justify-start sm:w-auto">
+            <TabsTrigger value="list">Lista</TabsTrigger>
+            <TabsTrigger value="month">Mensal</TabsTrigger>
+            <TabsTrigger value="week">Semanal</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="list">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Evento</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Data</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Espaco</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Tipo</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Visibilidade</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Acoes</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan="7" className="px-6 py-12 text-center text-sm text-gray-500">
+                          Carregando agenda v2...
+                        </td>
+                      </tr>
+                    ) : filteredEvents.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="px-6 py-12 text-center text-sm text-gray-500">
+                          Nenhum evento encontrado com os filtros atuais.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredEvents.map((event) => (
+                        <tr key={event.id}>
+                          <td className="px-6 py-4 align-top">
+                            <div className="font-semibold text-gray-900">{event.title}</div>
+                            <div className="text-sm text-gray-500">
+                              {[event.community, event.eventTypeName].filter(Boolean).join(' / ') || 'Sem classificacao'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 align-top text-sm text-gray-600">{formatEventDateLabel(event)}</td>
+                          <td className="px-6 py-4 align-top text-sm text-gray-600">
+                            {event.resourceName || event.locationText || 'Sem espaco vinculado'}
+                          </td>
+                          <td className="px-6 py-4 align-top text-sm text-gray-600">{event.eventTypeName || 'Sem tipo'}</td>
+                          <td className="px-6 py-4 align-top">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(event.status)}`}>
+                              {STATUS_OPTIONS.find((option) => option.value === event.status)?.label || event.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 align-top">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getVisibilityClasses(event.visibility)}`}>
+                              {VISIBILITY_OPTIONS.find((option) => option.value === event.visibility)?.label || event.visibility}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 align-top text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openDialog(event)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Excluir evento?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Essa acao removera o evento e seus vinculos de espaco da agenda v2.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      className="bg-red-600 hover:bg-red-700"
+                                      onClick={() => handleDeleteEvent(event.id)}
+                                    >
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="month">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.65fr,1fr]">
+              <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold capitalize text-gray-900">{formatMonthLabel(formatMonthKey(currentMonth))}</h2>
+                    <p className="text-sm text-gray-500">Visao mensal dos eventos filtrados na agenda.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleMonthShift(-1)}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleMonthShift(1)}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-2">
+                  {CALENDAR_WEEKDAYS.map((day) => (
+                    <div key={day} className="py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      {day}
+                    </div>
+                  ))}
+
+                  {monthGrid.map((day, index) => {
+                    if (!day) {
+                      return <div key={`empty-${index}`} className="aspect-square rounded-xl bg-transparent" />;
+                    }
+
+                    const dateKey = formatDateKey(day);
+                    const dayEvents = monthEventsByDate[dateKey] || [];
+                    const hasInternalEvent = dayEvents.some((event) => event.visibility === 'internal');
+                    const hasPendingEvent = dayEvents.some((event) => event.status === 'pending_approval');
+                    const isTodayCell = isSameDate(day, today);
+                    const isSelected = selectedDate === dateKey;
+
+                    return (
+                      <button
+                        key={dateKey}
+                        type="button"
+                        onClick={() => setSelectedDate(dateKey)}
+                        className={`aspect-square rounded-xl border p-2 text-left transition ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50 shadow-sm'
+                            : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40'
+                        }`}
+                      >
+                        <div className="flex h-full flex-col justify-between">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className={`text-sm font-semibold ${isTodayCell ? 'text-blue-700' : 'text-gray-800'}`}>
+                              {day.getDate()}
+                            </span>
+                            {dayEvents.length > 0 ? (
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                {dayEvents.length}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {dayEvents.length > 0 ? <span className="h-2 w-2 rounded-full bg-blue-600" /> : null}
+                            {hasInternalEvent ? <span className="h-2 w-2 rounded-full bg-violet-500" /> : null}
+                            {hasPendingEvent ? <span className="h-2 w-2 rounded-full bg-amber-500" /> : null}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                <div className="mb-5">
+                  <h2 className="text-xl font-bold text-gray-900">Eventos do dia</h2>
+                  <p className="mt-1 text-sm capitalize text-gray-500">{formatSelectedDayLabel(selectedDate)}</p>
+                </div>
+
+                <div className="space-y-4">
+                  {selectedDateEvents.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
+                      Nenhum evento encontrado para esse dia.
+                    </div>
+                  ) : (
+                    selectedDateEvents.map((event) => (
+                      <div key={`month-${event.id}`} className="rounded-xl border border-gray-100 bg-white p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                            <p className="mt-1 text-sm text-gray-500">{formatEventTimeSummary(event)}</p>
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${getStatusClasses(event.status)}`}>
+                              {STATUS_OPTIONS.find((option) => option.value === event.status)?.label || event.status}
+                            </span>
+                            <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${getVisibilityClasses(event.visibility)}`}>
+                              {VISIBILITY_OPTIONS.find((option) => option.value === event.visibility)?.label || event.visibility}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-sm text-gray-600">{event.resourceName || event.locationText || 'Sem espaco vinculado'}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="week">
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+              <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Ocupacao semanal de espacos</h2>
+                  <p className="text-sm text-gray-500">{weekRangeLabel}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleWeekShift(-1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setWeekAnchor(today)}>
+                    Hoje
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleWeekShift(1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-[980px] w-full border-separate border-spacing-0">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-10 bg-white px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Espaco
+                      </th>
+                      {weekDays.map((day) => (
+                        <th
+                          key={formatDateKey(day)}
+                          className="border-b border-gray-100 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                        >
+                          {formatWeekdayLabel(day)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyRows.map((row) => (
+                      <tr key={row.id}>
+                        <td className="sticky left-0 z-10 border-b border-gray-100 bg-white px-4 py-4 align-top text-sm font-semibold text-gray-900">
+                          {row.name}
+                        </td>
+                        {row.days.map((dayCell) => (
+                          <td key={`${row.id}-${dayCell.dateKey}`} className="border-b border-gray-100 px-3 py-3 align-top">
+                            {dayCell.events.length === 0 ? (
+                              <div className="rounded-lg border border-dashed border-gray-200 px-3 py-4 text-center text-xs text-gray-400">
+                                Livre
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {dayCell.events.map((event) => (
+                                  <div
+                                    key={`${row.id}-${dayCell.dateKey}-${event.id}`}
+                                    className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
+                                  >
+                                    <div className="text-sm font-semibold text-gray-900">{event.title}</div>
+                                    <div className="mt-1 text-xs text-gray-500">{formatEventTimeSummary(event)}</div>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${getVisibilityClasses(event.visibility)}`}>
+                                        {VISIBILITY_OPTIONS.find((option) => option.value === event.visibility)?.label || event.visibility}
+                                      </span>
+                                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${getStatusClasses(event.status)}`}>
+                                        {STATUS_OPTIONS.find((option) => option.value === event.status)?.label || event.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog

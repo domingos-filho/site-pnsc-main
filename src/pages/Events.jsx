@@ -1,14 +1,35 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, MapPin, RefreshCw, Search, Shield } from 'lucide-react';
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+  RefreshCw,
+  Search,
+  Shield,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  eventOccursOnDate,
+  formatDateKey,
+  formatMonthKey,
+  formatMonthLabel,
+  getMonthGrid,
+  isSameDate,
+  parseMonthKey,
+} from '@/lib/calendarView';
 import { loadPublicCalendarData } from '@/lib/calendarData';
 import { loadEvents } from '@/lib/supabaseData';
+
+const CALENDAR_WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
 const mapLegacyEvent = (event) => {
   const startsAt = event.time
@@ -51,24 +72,6 @@ const mapLegacyEvent = (event) => {
     updatedAt: null,
   };
 };
-
-const formatMonthKey = (value) => {
-  const date = new Date(value);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-};
-
-const formatMonthLabel = (monthKey) => {
-  const [year, month] = monthKey.split('-').map(Number);
-  return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', {
-    month: 'long',
-    year: 'numeric',
-  });
-};
-
-const isSameDate = (left, right) =>
-  left.getFullYear() === right.getFullYear() &&
-  left.getMonth() === right.getMonth() &&
-  left.getDate() === right.getDate();
 
 const getStatusLabel = (status) => {
   switch (status) {
@@ -132,6 +135,17 @@ const formatEventDate = (event) => {
   return `${start.toLocaleString('pt-BR')} ate ${end.toLocaleString('pt-BR')}`;
 };
 
+const formatSelectedDayLabel = (dateKey) => {
+  if (!dateKey) return 'Selecione um dia';
+
+  return new Date(`${dateKey}T00:00:00`).toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
 const EventCard = ({ event }) => (
   <article className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
     <div className="flex items-start justify-between gap-4 mb-4">
@@ -156,7 +170,7 @@ const EventCard = ({ event }) => (
 
     <div className="space-y-2 text-sm text-gray-600">
       <div className="flex items-start gap-2">
-        <Calendar className="h-4 w-4 mt-0.5 text-blue-600" />
+        <CalendarIcon className="h-4 w-4 mt-0.5 text-blue-600" />
         <span>{formatEventDate(event)}</span>
       </div>
       <div className="flex items-start gap-2">
@@ -172,20 +186,62 @@ const EventCard = ({ event }) => (
     </div>
 
     <div className="mt-4 flex flex-wrap gap-2">
-      {event.community ? <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">{event.community}</span> : null}
-      {event.eventTypeName ? <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{event.eventTypeName}</span> : null}
-      {event.recurrenceRule ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">{event.recurrenceRule}</span> : null}
+      {event.community ? (
+        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">{event.community}</span>
+      ) : null}
+      {event.eventTypeName ? (
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{event.eventTypeName}</span>
+      ) : null}
+      {event.recurrenceRule ? (
+        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">{event.recurrenceRule}</span>
+      ) : null}
     </div>
 
     {event.description ? <p className="mt-4 text-sm leading-6 text-gray-600">{event.description}</p> : null}
   </article>
 );
 
+const CompactEventCard = ({ event }) => (
+  <div className="rounded-xl border border-gray-100 bg-white p-4">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h3 className="font-semibold text-gray-900">{event.title}</h3>
+        <p className="mt-1 text-sm text-gray-500">{formatEventDate(event)}</p>
+      </div>
+      <div className="flex flex-wrap justify-end gap-2">
+        {event.visibility === 'internal' ? (
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold ${getVisibilityClasses(event.visibility)}`}
+          >
+            <Shield className="mr-1 h-3 w-3" />
+            Interno
+          </span>
+        ) : null}
+        <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${getStatusClasses(event.status)}`}>
+          {getStatusLabel(event.status)}
+        </span>
+      </div>
+    </div>
+
+    <div className="mt-3 space-y-2 text-sm text-gray-600">
+      <div className="flex items-start gap-2">
+        <MapPin className="mt-0.5 h-4 w-4 text-blue-600" />
+        <span>{event.resourceName || event.locationText || 'Local a definir'}</span>
+      </div>
+      {event.description ? <p className="leading-6 text-gray-600">{event.description}</p> : null}
+    </div>
+  </div>
+);
+
 const Events = () => {
   const { user, isMember, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const today = new Date();
   const [events, setEvents] = useState([]);
   const [source, setSource] = useState('calendar');
+  const [activeView, setActiveView] = useState('list');
+  const [currentMonth, setCurrentMonth] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(formatDateKey(today));
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: '',
@@ -238,9 +294,13 @@ const Events = () => {
   );
 
   const monthOptions = useMemo(() => {
-    const unique = Array.from(new Set(events.map((event) => formatMonthKey(event.startsAt))));
+    const unique = Array.from(new Set(events.map((event) => formatMonthKey(event.startsAt)).filter(Boolean)));
+    const currentMonthKey = formatMonthKey(currentMonth);
+    if (currentMonthKey && !unique.includes(currentMonthKey)) {
+      unique.push(currentMonthKey);
+    }
     return unique.sort();
-  }, [events]);
+  }, [currentMonth, events]);
 
   const filteredEvents = useMemo(() => {
     const searchTerm = filters.search.trim().toLowerCase();
@@ -269,15 +329,14 @@ const Events = () => {
     });
   }, [events, filters]);
 
-  const today = new Date();
   const todayEvents = useMemo(
     () => filteredEvents.filter((event) => isSameDate(new Date(event.startsAt), today)).slice(0, 5),
-    [filteredEvents]
+    [filteredEvents, today]
   );
 
   const upcomingEvents = useMemo(
     () => filteredEvents.filter((event) => new Date(event.endsAt) >= today).slice(0, 6),
-    [filteredEvents]
+    [filteredEvents, today]
   );
 
   const groupedEvents = useMemo(() => {
@@ -295,6 +354,56 @@ const Events = () => {
     () => filteredEvents.filter((event) => event.visibility === 'internal').length,
     [filteredEvents]
   );
+
+  const monthGrid = useMemo(() => getMonthGrid(currentMonth), [currentMonth]);
+
+  const eventsByDate = useMemo(() => {
+    return monthGrid.reduce((accumulator, day) => {
+      if (!day) return accumulator;
+
+      const dateKey = formatDateKey(day);
+      const dayEvents = filteredEvents
+        .filter((event) => eventOccursOnDate(event, day))
+        .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+
+      if (dayEvents.length > 0) {
+        accumulator[dateKey] = dayEvents;
+      }
+
+      return accumulator;
+    }, {});
+  }, [filteredEvents, monthGrid]);
+
+  const selectedDateEvents = useMemo(() => {
+    return (eventsByDate[selectedDate] || []).slice().sort((left, right) => {
+      return new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime();
+    });
+  }, [eventsByDate, selectedDate]);
+
+  const handleMonthShift = (delta) => {
+    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
+    setCurrentMonth(nextMonth);
+
+    if (filters.month !== 'all') {
+      setFilters((prev) => ({ ...prev, month: formatMonthKey(nextMonth) }));
+    }
+
+    if (formatMonthKey(selectedDate) !== formatMonthKey(nextMonth)) {
+      setSelectedDate(formatDateKey(nextMonth));
+    }
+  };
+
+  const handleMonthFilterChange = (value) => {
+    setFilters((prev) => ({ ...prev, month: value }));
+
+    if (value === 'all') return;
+
+    const parsedMonth = parseMonthKey(value);
+    if (!parsedMonth) return;
+
+    setCurrentMonth(parsedMonth);
+    setSelectedDate(formatDateKey(parsedMonth));
+  };
 
   return (
     <>
@@ -328,7 +437,7 @@ const Events = () => {
           ) : null}
 
           <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
               <div className="lg:col-span-2">
                 <Label htmlFor="agenda-search">Buscar evento</Label>
                 <div className="relative">
@@ -347,7 +456,7 @@ const Events = () => {
                 <select
                   id="agenda-month"
                   value={filters.month}
-                  onChange={(event) => setFilters((prev) => ({ ...prev, month: event.target.value }))}
+                  onChange={(event) => handleMonthFilterChange(event.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="all">Todos</option>
@@ -405,48 +514,145 @@ const Events = () => {
               Carregando agenda...
             </div>
           ) : (
-            <>
-              {todayEvents.length > 0 ? (
+            <Tabs value={activeView} onValueChange={setActiveView}>
+              <TabsList className="w-full justify-start sm:w-auto">
+                <TabsTrigger value="list">Lista</TabsTrigger>
+                <TabsTrigger value="calendar">Calendario</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="list" className="space-y-8">
+                {todayEvents.length > 0 ? (
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Hoje</h2>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      {todayEvents.map((event) => (
+                        <EventCard key={`today-${event.id}`} event={event} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Hoje</h2>
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    {todayEvents.map((event) => (
-                      <EventCard key={`today-${event.id}`} event={event} />
-                    ))}
-                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Proximos eventos</h2>
+                  {upcomingEvents.length === 0 ? (
+                    <div className="rounded-2xl bg-white px-6 py-10 text-center text-gray-500 shadow-sm ring-1 ring-gray-100">
+                      Nenhum evento encontrado.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                      {upcomingEvents.map((event) => (
+                        <EventCard key={`upcoming-${event.id}`} event={event} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ) : null}
 
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Proximos eventos</h2>
-                {upcomingEvents.length === 0 ? (
-                  <div className="rounded-2xl bg-white px-6 py-10 text-center text-gray-500 shadow-sm ring-1 ring-gray-100">
-                    Nenhum evento encontrado.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                    {upcomingEvents.map((event) => (
-                      <EventCard key={`upcoming-${event.id}`} event={event} />
+                {Object.keys(groupedEvents).length > 0 ? (
+                  <div className="space-y-8">
+                    {Object.entries(groupedEvents).map(([monthKey, monthEvents]) => (
+                      <div key={monthKey}>
+                        <h2 className="mb-4 text-2xl font-bold capitalize text-gray-900">{formatMonthLabel(monthKey)}</h2>
+                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                          {monthEvents.map((event) => (
+                            <EventCard key={event.id} event={event} />
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                )}
-              </div>
+                ) : null}
+              </TabsContent>
 
-              {Object.keys(groupedEvents).length > 0 ? (
-                <div className="space-y-8">
-                  {Object.entries(groupedEvents).map(([monthKey, monthEvents]) => (
-                    <div key={monthKey}>
-                      <h2 className="mb-4 text-2xl font-bold capitalize text-gray-900">{formatMonthLabel(monthKey)}</h2>
-                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                        {monthEvents.map((event) => (
-                          <EventCard key={event.id} event={event} />
-                        ))}
+              <TabsContent value="calendar">
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.65fr,1fr]">
+                  <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold capitalize text-gray-900">
+                          {formatMonthLabel(formatMonthKey(currentMonth))}
+                        </h2>
+                        <p className="text-sm text-gray-500">Clique em um dia para ver os eventos desse periodo.</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleMonthShift(-1)}>
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleMonthShift(1)}>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  ))}
+
+                    <div className="grid grid-cols-7 gap-2">
+                      {CALENDAR_WEEKDAYS.map((day) => (
+                        <div key={day} className="py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          {day}
+                        </div>
+                      ))}
+
+                      {monthGrid.map((day, index) => {
+                        if (!day) {
+                          return <div key={`empty-${index}`} className="aspect-square rounded-xl bg-transparent" />;
+                        }
+
+                        const dateKey = formatDateKey(day);
+                        const dayEvents = eventsByDate[dateKey] || [];
+                        const hasInternalEvent = dayEvents.some((event) => event.visibility === 'internal');
+                        const isToday = isSameDate(day, today);
+                        const isSelected = selectedDate === dateKey;
+
+                        return (
+                          <button
+                            key={dateKey}
+                            type="button"
+                            onClick={() => setSelectedDate(dateKey)}
+                            className={`aspect-square rounded-xl border p-2 text-left transition ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40'
+                            }`}
+                          >
+                            <div className="flex h-full flex-col justify-between">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className={`text-sm font-semibold ${isToday ? 'text-blue-700' : 'text-gray-800'}`}>
+                                  {day.getDate()}
+                                </span>
+                                {dayEvents.length > 0 ? (
+                                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                    {dayEvents.length}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {dayEvents.length > 0 ? <span className="h-2 w-2 rounded-full bg-blue-600" /> : null}
+                                {hasInternalEvent ? <span className="h-2 w-2 rounded-full bg-violet-500" /> : null}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <div className="mb-5">
+                      <h2 className="text-xl font-bold text-gray-900">Eventos do dia</h2>
+                      <p className="mt-1 text-sm capitalize text-gray-500">{formatSelectedDayLabel(selectedDate)}</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {selectedDateEvents.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
+                          Nenhum evento encontrado para esse dia.
+                        </div>
+                      ) : (
+                        selectedDateEvents.map((event) => <CompactEventCard key={`calendar-${event.id}`} event={event} />)
+                      )}
+                    </div>
+                  </div>
                 </div>
-              ) : null}
-            </>
+              </TabsContent>
+            </Tabs>
           )}
         </div>
       </section>
