@@ -10,7 +10,6 @@ import {
   MapPin,
   MessageCircle,
   Search,
-  Sparkles,
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,7 +19,6 @@ import { useData } from '@/contexts/DataContext';
 import {
   buildPastoralAgendaHref,
   buildPastoralWhatsAppHref,
-  getAllPastoralItems,
   getPastoralCategoryLabel,
   getPastoralSections,
   pastoralMatchesSearch,
@@ -68,12 +66,6 @@ const PastoralCard = ({ item }) => {
             <span className="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
               {categoryLabel}
             </span>
-            {item.featured ? (
-              <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
-                <Sparkles className="mr-1 h-3.5 w-3.5" />
-                Destaque
-              </span>
-            ) : null}
           </div>
 
           <div className="mt-10">
@@ -147,12 +139,6 @@ const Pastorals = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
 
   const sections = useMemo(() => getPastoralSections(siteData.pastorals), [siteData.pastorals]);
-  const allItems = useMemo(() => getAllPastoralItems(siteData.pastorals, { activeOnly: true }), [siteData.pastorals]);
-
-  const featuredItems = useMemo(() => {
-    const highlighted = allItems.filter((item) => item.featured);
-    return (highlighted.length > 0 ? highlighted : allItems).slice(0, 3);
-  }, [allItems]);
 
   const filteredSections = useMemo(() => {
     return sections
@@ -189,7 +175,7 @@ const Pastorals = () => {
 
       <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe,_#f8fafc_45%)]">
         <section className="overflow-hidden bg-slate-950 text-white">
-          <div className="container mx-auto px-4 py-16">
+          <div className="container mx-auto px-4 py-16 md:py-20">
             <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl">
               <span className="inline-flex items-center rounded-full bg-white/10 px-4 py-1.5 text-sm font-semibold text-blue-100 backdrop-blur-sm">
                 Vida pastoral da comunidade
@@ -202,31 +188,11 @@ const Pastorals = () => {
                 melhor combina com seu momento e seus dons.
               </p>
             </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3"
-            >
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                <p className="text-sm uppercase tracking-wide text-blue-100">Grupos ativos</p>
-                <p className="mt-3 text-4xl font-bold">{allItems.length}</p>
-              </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                <p className="text-sm uppercase tracking-wide text-blue-100">Pastorais e movimentos</p>
-                <p className="mt-3 text-4xl font-bold">{sections[0].items.length + sections[1].items.length}</p>
-              </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                <p className="text-sm uppercase tracking-wide text-blue-100">Servicos de apoio</p>
-                <p className="mt-3 text-4xl font-bold">{sections[2].items.length}</p>
-              </div>
-            </motion.div>
           </div>
         </section>
 
-        <section className="container mx-auto px-4 py-10">
-          <div className="rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur-sm">
+        <section className="relative z-10 -mt-10 container mx-auto px-4 pb-4">
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr,1fr]">
               <div>
                 <Label htmlFor="pastoral-search">Buscar grupo</Label>
@@ -270,27 +236,7 @@ const Pastorals = () => {
           </div>
         </section>
 
-        {featuredItems.length > 0 ? (
-          <section className="container mx-auto px-4 pb-4">
-            <div className="mb-6 flex items-center gap-3">
-              <div className="rounded-full bg-blue-100 p-3 text-blue-700">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold text-slate-900">Destaques para participar</h2>
-                <p className="text-sm text-slate-600">Alguns caminhos para comecar sua caminhada pastoral.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-              {featuredItems.map((item) => (
-                <PastoralCard key={`featured-${item.id}`} item={item} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <main className="container mx-auto px-4 py-10">
+        <main className="container mx-auto px-4 py-8 md:py-10">
           <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-slate-900">Todos os grupos</h2>

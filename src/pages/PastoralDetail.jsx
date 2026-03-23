@@ -9,7 +9,6 @@ import {
   MapPin,
   MessageCircle,
   Phone,
-  Sparkles,
   Target,
   Users,
 } from 'lucide-react';
@@ -21,7 +20,6 @@ import {
   buildPastoralAgendaHref,
   buildPastoralWhatsAppHref,
   findPastoralBySlug,
-  getAllPastoralItems,
   getPastoralCategoryLabel,
 } from '@/lib/pastorals';
 
@@ -87,7 +85,6 @@ const PastoralDetail = () => {
   const [loadingEvents, setLoadingEvents] = useState(false);
 
   const pastoral = useMemo(() => findPastoralBySlug(siteData.pastorals, slug), [siteData.pastorals, slug]);
-  const allItems = useMemo(() => getAllPastoralItems(siteData.pastorals, { activeOnly: true }), [siteData.pastorals]);
 
   useEffect(() => {
     let isMounted = true;
@@ -116,11 +113,6 @@ const PastoralDetail = () => {
       isMounted = false;
     };
   }, [authLoading, pastoral]);
-
-  const siblingItems = useMemo(() => {
-    if (!pastoral) return [];
-    return allItems.filter((item) => item.slug !== pastoral.slug && item.category === pastoral.category).slice(0, 3);
-  }, [allItems, pastoral]);
 
   const whatsappHref = pastoral ? buildPastoralWhatsAppHref(pastoral.contactWhatsapp) : '';
   const agendaHref = pastoral ? buildPastoralAgendaHref(pastoral) : '/agenda';
@@ -337,27 +329,6 @@ const PastoralDetail = () => {
                 </Link>
               </div>
             </div>
-
-            {siblingItems.length > 0 ? (
-              <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
-                <div className="flex items-center gap-2 text-slate-900">
-                  <Sparkles className="h-5 w-5 text-blue-600" />
-                  <h2 className="text-xl font-bold">Outros caminhos parecidos</h2>
-                </div>
-                <div className="mt-5 space-y-4">
-                  {siblingItems.map((item) => (
-                    <Link
-                      key={item.id}
-                      to={`/pastorais/${item.slug}`}
-                      className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-blue-200 hover:bg-blue-50"
-                    >
-                      <p className="font-semibold text-slate-900">{item.name}</p>
-                      <p className="mt-1 text-sm text-slate-600">{item.summary || item.objective}</p>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </aside>
         </div>
       </section>
@@ -366,4 +337,3 @@ const PastoralDetail = () => {
 };
 
 export default PastoralDetail;
-
