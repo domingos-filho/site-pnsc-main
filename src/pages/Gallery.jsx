@@ -99,7 +99,6 @@ const Gallery = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedCommunity, setSelectedCommunity] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedTag, setSelectedTag] = useState(() => searchParams.get('tag') || 'all');
   const [sortBy, setSortBy] = useState('recent');
   const [currentPage, setCurrentPage] = useState(1);
@@ -167,14 +166,6 @@ const Gallery = () => {
     [albums]
   );
 
-  const categories = useMemo(
-    () =>
-      [...new Set(albums.map((album) => album.category).filter(Boolean))].sort((left, right) =>
-        left.localeCompare(right, 'pt-BR', { sensitivity: 'base' })
-      ),
-    [albums]
-  );
-
   const tags = useMemo(
     () =>
       [...new Set(albums.flatMap((album) => (Array.isArray(album.tags) ? album.tags : [])).filter(Boolean))].sort(
@@ -189,7 +180,6 @@ const Gallery = () => {
     return albums.filter((album) => {
       const matchesYear = selectedYear === 'all' || String(album.year) === selectedYear;
       const matchesCommunity = selectedCommunity === 'all' || album.community === selectedCommunity;
-      const matchesCategory = selectedCategory === 'all' || album.category === selectedCategory;
       const matchesTag =
         selectedTag === 'all' ||
         (Array.isArray(album.tags) && album.tags.some((tag) => tag === selectedTag));
@@ -208,9 +198,9 @@ const Gallery = () => {
       const matchesSearch =
         !normalizedSearch || normalizeFilterValue(searchableText).includes(normalizedSearch);
 
-      return matchesYear && matchesCommunity && matchesCategory && matchesTag && matchesSearch;
+      return matchesYear && matchesCommunity && matchesTag && matchesSearch;
     });
-  }, [albums, deferredSearchTerm, selectedCategory, selectedCommunity, selectedTag, selectedYear]);
+  }, [albums, deferredSearchTerm, selectedCommunity, selectedTag, selectedYear]);
 
   const sortedAlbums = useMemo(() => sortAlbums(filteredAlbums, sortBy), [filteredAlbums, sortBy]);
   const totalPages = Math.max(1, Math.ceil(sortedAlbums.length / ALBUMS_PER_PAGE));
@@ -222,7 +212,7 @@ const Gallery = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [deferredSearchTerm, selectedCategory, selectedCommunity, selectedTag, selectedYear, sortBy]);
+  }, [deferredSearchTerm, selectedCommunity, selectedTag, selectedYear, sortBy]);
 
   useEffect(() => {
     const tagFromUrl = searchParams.get('tag') || 'all';
@@ -252,7 +242,6 @@ const Gallery = () => {
     setSearchTerm('');
     setSelectedYear('all');
     setSelectedCommunity('all');
-    setSelectedCategory('all');
     setSelectedTag('all');
     setSortBy('recent');
   };
@@ -285,7 +274,7 @@ const Gallery = () => {
       <section className="bg-gray-50 py-10 border-b border-blue-100">
         <div className="container mx-auto px-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-[2fr_repeat(3,1fr)_auto] gap-4 items-end">
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_repeat(2,1fr)_auto] gap-4 items-end">
               <div className="space-y-2">
                 <label htmlFor="gallery-search" className="text-sm font-medium text-gray-700">
                   Buscar evento
@@ -335,25 +324,6 @@ const Gallery = () => {
                   {communities.map((community) => (
                     <option key={community} value={community}>
                       {community}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="gallery-category" className="text-sm font-medium text-gray-700">
-                  Categoria
-                </label>
-                <select
-                  id="gallery-category"
-                  value={selectedCategory}
-                  onChange={(event) => setSelectedCategory(event.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="all">Todas</option>
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
                     </option>
                   ))}
                 </select>

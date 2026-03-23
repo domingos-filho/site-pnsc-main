@@ -23,10 +23,12 @@ const TeamMemberCard = ({ member, index }) => (
     <div className="p-3 flex flex-col gap-1">
       <h3 className="text-lg font-bold text-gray-800">{member.name}</h3>
       <p className="text-blue-700 font-semibold text-sm">{member.role}</p>
-      <div className="inline-flex items-center justify-center text-xs text-gray-500 mt-2">
-        <Phone className="h-4 w-4 mr-2" />
-        {member.contact}
-      </div>
+      {String(member.contact || '').trim() ? (
+        <div className="inline-flex items-center justify-center text-xs text-gray-500 mt-2">
+          <Phone className="h-4 w-4 mr-2" />
+          {member.contact}
+        </div>
+      ) : null}
     </div>
   </motion.div>
 );

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Phone, Mail, MapPin, Clock, Send, Instagram, Facebook } from 'lucide-react';
+import { Phone, Mail, MapPin, Clock, Send, Instagram, Facebook, Youtube } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +40,7 @@ const CONTACT_DEFAULT_COORDS = {
 };
 
 const coordsMatch = (left, right, tolerance = 0.0002) => Math.abs(left - right) <= tolerance;
+const CONTACT_FORM_ENDPOINT = 'https://formsubmit.co/ajax/paroquiansconceicao2019@hotmail.com';
 
 const normalizeMapCoords = (lat, lng) => {
   if (coordsMatch(lat, LEGACY_DEFAULT_COORDS.lat) && coordsMatch(lng, LEGACY_DEFAULT_COORDS.lng)) {
@@ -52,6 +53,7 @@ const normalizeMapCoords = (lat, lng) => {
 const Contact = () => {
   const { toast } = useToast();
   const { siteData, loading } = useData();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (loading) {
     return <div>Carregando...</div>;
@@ -66,14 +68,66 @@ const Contact = () => {
   const wazeUrl = `https://waze.com/ul?ll=${resolvedLat}%2C${resolvedLng}&navigate=yes&zoom=17`;
   const wazeEmbedUrl = `https://embed.waze.com/iframe?zoom=17&lat=${resolvedLat}&lon=${resolvedLng}&pin=1`;
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    toast({
-      title: 'Mensagem nao enviada!',
-      description:
-        'Este formulario e apenas demonstrativo. A funcionalidade de envio sera implementada em breve.',
-    });
-    event.target.reset();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const honeypotValue = String(formData.get('_honey') || '').trim();
+
+    if (honeypotValue) {
+      return;
+    }
+
+    const senderName = String(formData.get('name') || '').trim();
+    const senderEmail = String(formData.get('email') || '').trim();
+    const subject = String(formData.get('subject') || '').trim();
+    const message = String(formData.get('message') || '').trim();
+
+    const payload = new FormData();
+    payload.append('name', senderName);
+    payload.append('email', senderEmail);
+    payload.append('subject', subject);
+    payload.append('message', message);
+    payload.append('_subject', `[Site PNSC] ${subject}`);
+    payload.append('_template', 'table');
+    payload.append('_replyto', senderEmail);
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(CONTACT_FORM_ENDPOINT, {
+        method: 'POST',
+        body: payload,
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      let result = null;
+      try {
+        result = await response.json();
+      } catch {
+        result = null;
+      }
+
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.message || 'Falha ao enviar a mensagem.');
+      }
+
+      toast({
+        title: 'Mensagem enviada!',
+        description: 'Recebemos sua mensagem e entraremos em contato em breve.',
+      });
+      form.reset();
+    } catch (error) {
+      toast({
+        title: 'Mensagem nao enviada!',
+        description: error?.message || 'Nao foi possivel enviar sua mensagem agora. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const openWhatsApp = () => {
@@ -158,6 +212,14 @@ const Contact = () => {
                   >
                     <Facebook size={28} />
                   </a>
+                  <a
+                    href={social.youtube}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-500 hover:text-red-600"
+                  >
+                    <Youtube size={28} />
+                  </a>
                 </div>
               </div>
             </motion.div>
@@ -169,24 +231,26 @@ const Contact = () => {
             >
               <h2 className="text-3xl font-bold text-gray-800 mb-6">Envie uma Mensagem</h2>
               <form onSubmit={handleSubmit} className="space-y-6">
+                <input type="text" name="_honey" className="hidden" tabIndex="-1" autoComplete="off" />
                 <div>
                   <Label htmlFor="name">Seu Nome</Label>
-                  <Input id="name" required />
+                  <Input id="name" name="name" autoComplete="name" required />
                 </div>
                 <div>
                   <Label htmlFor="email">Seu Email</Label>
-                  <Input type="email" id="email" required />
+                  <Input type="email" id="email" name="email" autoComplete="email" required />
                 </div>
                 <div>
                   <Label htmlFor="subject">Assunto</Label>
-                  <Input id="subject" required />
+                  <Input id="subject" name="subject" required />
                 </div>
                 <div>
                   <Label htmlFor="message">Sua Mensagem</Label>
-                  <Textarea id="message" rows={5} required />
+                  <Textarea id="message" name="message" rows={5} required />
                 </div>
-                <Button type="submit" className="w-full" size="lg">
-                  Enviar Mensagem <Send className="ml-2 h-4 w-4" />
+                <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                  {isSubmitting ? 'Enviando...' : 'Enviar Mensagem'}
+                  <Send className="ml-2 h-4 w-4" />
                 </Button>
               </form>
             </motion.div>
