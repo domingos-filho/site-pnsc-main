@@ -1,6 +1,6 @@
 
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { DataProvider } from '@/contexts/DataContext';
@@ -19,6 +19,7 @@ const Team = lazy(() => import('@/pages/Team'));
 const Contact = lazy(() => import('@/pages/Contact'));
 const Login = lazy(() => import('@/pages/Login'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const ManageEvents = lazy(() => import('@/pages/admin/ManageEvents'));
 const ManageGallery = lazy(() => import('@/pages/admin/ManageGallery'));
 const ManageUsers = lazy(() => import('@/pages/admin/ManageUsers'));
 const SiteSettings = lazy(() => import('@/pages/admin/SiteSettings'));
@@ -58,7 +59,7 @@ function App() {
                 path="/dashboard/events"
                 element={
                   <PrivateRoute requiredRole="secretary">
-                    <Navigate to="/agenda" replace />
+                    <ManageEvents />
                   </PrivateRoute>
                 }
               />

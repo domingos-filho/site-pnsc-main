@@ -148,6 +148,9 @@ create index if not exists calendar_events_search_tokens_idx
 create index if not exists calendar_event_resources_resource_window_idx
   on public.calendar_event_resources (resource_id, starts_at, ends_at);
 
+create unique index if not exists calendar_event_resources_event_id_resource_id_key
+  on public.calendar_event_resources (event_id, resource_id);
+
 create index if not exists calendar_booking_requests_status_window_idx
   on public.calendar_booking_requests (status, requested_start, requested_end);
 

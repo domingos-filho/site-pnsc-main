@@ -21,9 +21,9 @@ const Dashboard = () => {
   const dashboardItems = [
     {
       name: 'Gerenciar Agenda',
-      path: '/agenda',
+      path: '/dashboard/events',
       icon: Calendar,
-      description: 'Cadastre e edite eventos da agenda paroquial.',
+      description: 'Cadastre, edite e acompanhe eventos e ocupacao dos espacos.',
       roles: ['secretary', 'admin'],
       color: 'text-blue-600',
     },
