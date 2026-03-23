@@ -889,9 +889,11 @@ const ManageEvents = () => {
                             ) : (
                               <div className="space-y-2">
                                 {dayCell.events.map((event) => (
-                                  <div
+                                  <button
                                     key={`${row.id}-${dayCell.dateKey}-${event.id}`}
-                                    className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
+                                    type="button"
+                                    onClick={() => openDialog(event)}
+                                    className="w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-left transition hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                   >
                                     <div className="text-sm font-semibold text-gray-900">{event.title}</div>
                                     <div className="mt-1 text-xs text-gray-500">{formatEventTimeSummary(event)}</div>
@@ -903,7 +905,7 @@ const ManageEvents = () => {
                                         {STATUS_OPTIONS.find((option) => option.value === event.status)?.label || event.status}
                                       </span>
                                     </div>
-                                  </div>
+                                  </button>
                                 ))}
                               </div>
                             )}
