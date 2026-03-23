@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -281,6 +282,7 @@ const Events = () => {
   const { user, isMember, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const today = new Date();
+  const [searchParams] = useSearchParams();
   const [events, setEvents] = useState([]);
   const [source, setSource] = useState('calendar');
   const [activeView, setActiveView] = useState('list');
@@ -289,7 +291,7 @@ const Events = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
-    search: '',
+    search: searchParams.get('search') || '',
     month: 'all',
     category: 'all',
     location: 'all',
@@ -321,6 +323,11 @@ const Events = () => {
     if (authLoading) return;
     void refreshEvents();
   }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    const search = searchParams.get('search') || '';
+    setFilters((prev) => (prev.search === search ? prev : { ...prev, search }));
+  }, [searchParams]);
 
   const categoryOptions = useMemo(
     () =>

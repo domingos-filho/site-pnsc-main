@@ -11,6 +11,7 @@ const Home = lazy(() => import('@/pages/Home'));
 const Communities = lazy(() => import('@/pages/Communities'));
 const CommunityDetail = lazy(() => import('@/pages/CommunityDetail'));
 const Pastorals = lazy(() => import('@/pages/Pastorals'));
+const PastoralDetail = lazy(() => import('@/pages/PastoralDetail'));
 const Gallery = lazy(() => import('@/pages/Gallery'));
 const GalleryAlbumDetail = lazy(() => import('@/pages/GalleryAlbumDetail'));
 const Events = lazy(() => import('@/pages/Events'));
@@ -39,6 +40,7 @@ function App() {
               <Route path="/comunidades" element={<Communities />} />
               <Route path="/comunidades/:id" element={<CommunityDetail />} />
               <Route path="/pastorais" element={<Pastorals />} />
+              <Route path="/pastorais/:slug" element={<PastoralDetail />} />
               <Route path="/galeria" element={<Gallery />} />
               <Route path="/galeria/:slug" element={<GalleryAlbumDetail />} />
               <Route path="/agenda" element={<Events />} />

@@ -6,6 +6,7 @@ import {
   mergeGalleryCollections,
   normalizeGallery,
 } from '@/lib/gallery';
+import { normalizePastoralSections } from '@/lib/pastorals';
 
 const DataContext = createContext();
 const LOCAL_STORAGE_KEY = 'paroquia_site_data';
@@ -341,17 +342,19 @@ const normalizeSiteData = (rawData = initialSiteData) => ({
       : initialSiteData.home.heroImages,
   },
   pastorals: {
-    ...initialSiteData.pastorals,
-    ...rawData.pastorals,
-    pastorais: Array.isArray(rawData.pastorals?.pastorais)
-      ? rawData.pastorals.pastorais
-      : initialSiteData.pastorals.pastorais,
-    movimentos: Array.isArray(rawData.pastorals?.movimentos)
-      ? rawData.pastorals.movimentos
-      : initialSiteData.pastorals.movimentos,
-    servicos: Array.isArray(rawData.pastorals?.servicos)
-      ? rawData.pastorals.servicos
-      : initialSiteData.pastorals.servicos,
+    ...normalizePastoralSections({
+      ...initialSiteData.pastorals,
+      ...rawData.pastorals,
+      pastorais: Array.isArray(rawData.pastorals?.pastorais)
+        ? rawData.pastorals.pastorais
+        : initialSiteData.pastorals.pastorais,
+      movimentos: Array.isArray(rawData.pastorals?.movimentos)
+        ? rawData.pastorals.movimentos
+        : initialSiteData.pastorals.movimentos,
+      servicos: Array.isArray(rawData.pastorals?.servicos)
+        ? rawData.pastorals.servicos
+        : initialSiteData.pastorals.servicos,
+    }),
   },
   about: {
     ...initialSiteData.about,

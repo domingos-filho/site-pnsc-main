@@ -30,6 +30,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { deleteStoragePaths, isSupabaseReady, uploadImageFile } from '@/lib/supabaseStorage';
+import { getPastoralCategoryLabel, normalizePastoralItem } from '@/lib/pastorals';
+import SettingsPastoralsPanel from '@/pages/admin/SettingsPastoralsPanel';
 
 const showSyncWarning = (toast) => {
   toast({
@@ -1232,14 +1234,29 @@ const SettingsPastorals = () => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
+    const currentItems = siteData.pastorals[currentCategory] || [];
+    const currentIndex = currentItem
+      ? currentItems.findIndex((item) => item.id === currentItem.id)
+      : currentItems.length;
+    const normalizedItem = normalizePastoralItem(
+      {
+        ...currentItem,
+        ...data,
+        responsible: data.contactName || data.responsible || currentItem?.responsible || '',
+        active: formData.get('active') === 'on',
+        featured: formData.get('featured') === 'on',
+      },
+      currentCategory,
+      currentIndex >= 0 ? currentIndex : currentItems.length
+    );
 
     let updatedCategoryItems;
     if (currentItem) {
       updatedCategoryItems = siteData.pastorals[currentCategory].map((p) =>
-        p.name === currentItem.name ? { ...currentItem, ...data } : p
+        p.id === currentItem.id ? normalizedItem : p
       );
     } else {
-      updatedCategoryItems = [...siteData.pastorals[currentCategory], data];
+      updatedCategoryItems = [...siteData.pastorals[currentCategory], normalizedItem];
     }
 
     const result = await updateSiteData({
@@ -1257,8 +1274,8 @@ const SettingsPastorals = () => {
     setCurrentCategory(null);
   };
 
-  const handleDelete = async (category, name) => {
-    const updatedCategoryItems = siteData.pastorals[category].filter((p) => p.name !== name);
+  const handleDelete = async (category, itemId) => {
+    const updatedCategoryItems = siteData.pastorals[category].filter((p) => p.id !== itemId);
     const result = await updateSiteData({
       ...siteData,
       pastorals: { ...siteData.pastorals, [category]: updatedCategoryItems },
@@ -1287,12 +1304,29 @@ const SettingsPastorals = () => {
             <AnimatePresence>
               {(siteData.pastorals[key] || []).map((item) => (
                 <CrudItem
-                  key={item.name}
-                  item={{ ...item, id: item.name }}
+                  key={item.id}
+                  item={item}
                   onEdit={() => openDialog(key, item)}
-                  onDelete={() => handleDelete(key, item.name)}
+                  onDelete={() => handleDelete(key, item.id)}
                 >
                   <p className="font-semibold text-gray-800">{item.name}</p>
+                  <p className="text-sm text-gray-500">
+                    {[item.contactName || item.responsible, item.meeting || item.location].filter(Boolean).join(' • ') ||
+                      'Sem detalhes complementares'}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    <span className={`rounded-full px-2 py-1 font-semibold ${item.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {item.active ? 'Ativo' : 'Oculto'}
+                    </span>
+                    {item.featured ? (
+                      <span className="rounded-full bg-blue-100 px-2 py-1 font-semibold text-blue-700">
+                        Destaque
+                      </span>
+                    ) : null}
+                    <span className="rounded-full bg-gray-100 px-2 py-1 font-semibold text-gray-600">
+                      Ordem {item.sortOrder}
+                    </span>
+                  </div>
                 </CrudItem>
               ))}
             </AnimatePresence>
@@ -1312,11 +1346,16 @@ const SettingsPastorals = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{currentItem ? 'Editar' : 'Novo'} Item</DialogTitle>
+            <p className="text-sm text-gray-500">{getPastoralCategoryLabel(currentCategory)}</p>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
             <div className="space-y-1">
               <Label htmlFor="name">Nome</Label>
               <Input id="name" name="name" defaultValue={currentItem?.name} required />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="summary">Resumo curto</Label>
+              <Textarea id="summary" name="summary" defaultValue={currentItem?.summary} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="objective">Objetivo</Label>
@@ -1925,7 +1964,7 @@ const SiteSettings = () => {
               <SettingsCommunities />
             </TabsContent>
             <TabsContent value="pastorals">
-              <SettingsPastorals />
+              <SettingsPastoralsPanel />
             </TabsContent>
             <TabsContent value="team">
               <SettingsTeam />
