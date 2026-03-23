@@ -813,7 +813,12 @@ const ManageEvents = () => {
                     </div>
                   ) : (
                     selectedDateEvents.map((event) => (
-                      <div key={`month-${event.id}`} className="rounded-xl border border-gray-100 bg-white p-4">
+                      <button
+                        key={`month-${event.id}`}
+                        type="button"
+                        onClick={() => openDialog(event)}
+                        className="w-full rounded-xl border border-gray-100 bg-white p-4 text-left transition hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h3 className="font-semibold text-gray-900">{event.title}</h3>
@@ -829,7 +834,7 @@ const ManageEvents = () => {
                           </div>
                         </div>
                         <p className="mt-3 text-sm text-gray-600">{event.resourceName || event.locationText || 'Sem espaco vinculado'}</p>
-                      </div>
+                      </button>
                     ))
                   )}
                 </div>

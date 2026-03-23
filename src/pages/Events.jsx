@@ -12,6 +12,13 @@ import {
   Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -109,6 +116,19 @@ const getVisibilityClasses = (visibility) => {
   }
 };
 
+const getRecurrenceLabel = (recurrenceRule) => {
+  switch (recurrenceRule) {
+    case 'weekly':
+      return 'Semanal';
+    case 'monthly':
+      return 'Mensal';
+    case 'yearly':
+      return 'Anual';
+    default:
+      return recurrenceRule || '';
+  }
+};
+
 const formatEventDate = (event) => {
   const start = new Date(event.startsAt);
   const end = new Date(event.endsAt);
@@ -146,92 +166,116 @@ const formatSelectedDayLabel = (dateKey) => {
   });
 };
 
-const EventCard = ({ event }) => (
-  <article className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-    <div className="flex items-start justify-between gap-4 mb-4">
-      <div>
-        <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
-        {event.summary ? <p className="text-sm text-gray-500 mt-1">{event.summary}</p> : null}
-      </div>
-      <div className="flex flex-wrap justify-end gap-2">
-        {event.visibility === 'internal' ? (
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getVisibilityClasses(event.visibility)}`}
-          >
-            <Shield className="mr-1 h-3.5 w-3.5" />
-            {getVisibilityLabel(event.visibility)}
-          </span>
-        ) : null}
-        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(event.status)}`}>
-          {getStatusLabel(event.status)}
-        </span>
-      </div>
-    </div>
+const EventCard = ({ event, onClick }) => {
+  const Container = onClick ? 'button' : 'article';
 
-    <div className="space-y-2 text-sm text-gray-600">
-      <div className="flex items-start gap-2">
-        <CalendarIcon className="h-4 w-4 mt-0.5 text-blue-600" />
-        <span>{formatEventDate(event)}</span>
-      </div>
-      <div className="flex items-start gap-2">
-        <MapPin className="h-4 w-4 mt-0.5 text-blue-600" />
-        <span>{event.resourceName || event.locationText || 'Local a definir'}</span>
-      </div>
-      {event.organizerName ? (
-        <div className="flex items-start gap-2">
-          <Clock className="h-4 w-4 mt-0.5 text-blue-600" />
-          <span>Responsavel: {event.organizerName}</span>
+  return (
+    <Container
+      {...(onClick ? { type: 'button', onClick: () => onClick(event) } : {})}
+      className={`rounded-2xl bg-white p-5 text-left shadow-sm ring-1 ring-gray-100 ${
+        onClick
+          ? 'w-full transition hover:-translate-y-0.5 hover:shadow-md hover:ring-blue-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500'
+          : ''
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
+          {event.summary ? <p className="text-sm text-gray-500 mt-1">{event.summary}</p> : null}
         </div>
-      ) : null}
-    </div>
-
-    <div className="mt-4 flex flex-wrap gap-2">
-      {event.community ? (
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">{event.community}</span>
-      ) : null}
-      {event.eventTypeName ? (
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{event.eventTypeName}</span>
-      ) : null}
-      {event.recurrenceRule ? (
-        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">{event.recurrenceRule}</span>
-      ) : null}
-    </div>
-
-    {event.description ? <p className="mt-4 text-sm leading-6 text-gray-600">{event.description}</p> : null}
-  </article>
-);
-
-const CompactEventCard = ({ event }) => (
-  <div className="rounded-xl border border-gray-100 bg-white p-4">
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <h3 className="font-semibold text-gray-900">{event.title}</h3>
-        <p className="mt-1 text-sm text-gray-500">{formatEventDate(event)}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          {event.visibility === 'internal' ? (
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getVisibilityClasses(event.visibility)}`}
+            >
+              <Shield className="mr-1 h-3.5 w-3.5" />
+              {getVisibilityLabel(event.visibility)}
+            </span>
+          ) : null}
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(event.status)}`}>
+            {getStatusLabel(event.status)}
+          </span>
+        </div>
       </div>
-      <div className="flex flex-wrap justify-end gap-2">
-        {event.visibility === 'internal' ? (
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold ${getVisibilityClasses(event.visibility)}`}
-          >
-            <Shield className="mr-1 h-3 w-3" />
-            Interno
+
+      <div className="space-y-2 text-sm text-gray-600">
+        <div className="flex items-start gap-2">
+          <CalendarIcon className="h-4 w-4 mt-0.5 text-blue-600" />
+          <span>{formatEventDate(event)}</span>
+        </div>
+        <div className="flex items-start gap-2">
+          <MapPin className="h-4 w-4 mt-0.5 text-blue-600" />
+          <span>{event.resourceName || event.locationText || 'Local a definir'}</span>
+        </div>
+        {event.organizerName ? (
+          <div className="flex items-start gap-2">
+            <Clock className="h-4 w-4 mt-0.5 text-blue-600" />
+            <span>Responsavel: {event.organizerName}</span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {event.community ? (
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">{event.community}</span>
+        ) : null}
+        {event.eventTypeName ? (
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{event.eventTypeName}</span>
+        ) : null}
+        {event.recurrenceRule ? (
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+            {getRecurrenceLabel(event.recurrenceRule)}
           </span>
         ) : null}
-        <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${getStatusClasses(event.status)}`}>
-          {getStatusLabel(event.status)}
-        </span>
       </div>
-    </div>
 
-    <div className="mt-3 space-y-2 text-sm text-gray-600">
-      <div className="flex items-start gap-2">
-        <MapPin className="mt-0.5 h-4 w-4 text-blue-600" />
-        <span>{event.resourceName || event.locationText || 'Local a definir'}</span>
+      {event.description ? <p className="mt-4 text-sm leading-6 text-gray-600">{event.description}</p> : null}
+    </Container>
+  );
+};
+
+const CompactEventCard = ({ event, onClick }) => {
+  const Container = onClick ? 'button' : 'div';
+
+  return (
+    <Container
+      {...(onClick ? { type: 'button', onClick: () => onClick(event) } : {})}
+      className={`rounded-xl border border-gray-100 bg-white p-4 text-left ${
+        onClick
+          ? 'w-full transition hover:border-blue-200 hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500'
+          : ''
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-gray-900">{event.title}</h3>
+          <p className="mt-1 text-sm text-gray-500">{formatEventDate(event)}</p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {event.visibility === 'internal' ? (
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold ${getVisibilityClasses(event.visibility)}`}
+            >
+              <Shield className="mr-1 h-3 w-3" />
+              Interno
+            </span>
+          ) : null}
+          <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${getStatusClasses(event.status)}`}>
+            {getStatusLabel(event.status)}
+          </span>
+        </div>
       </div>
-      {event.description ? <p className="leading-6 text-gray-600">{event.description}</p> : null}
-    </div>
-  </div>
-);
+
+      <div className="mt-3 space-y-2 text-sm text-gray-600">
+        <div className="flex items-start gap-2">
+          <MapPin className="mt-0.5 h-4 w-4 text-blue-600" />
+          <span>{event.resourceName || event.locationText || 'Local a definir'}</span>
+        </div>
+        {event.description ? <p className="leading-6 text-gray-600">{event.description}</p> : null}
+      </div>
+    </Container>
+  );
+};
 
 const Events = () => {
   const { user, isMember, loading: authLoading } = useAuth();
@@ -242,6 +286,7 @@ const Events = () => {
   const [activeView, setActiveView] = useState('list');
   const [currentMonth, setCurrentMonth] = useState(today);
   const [selectedDate, setSelectedDate] = useState(formatDateKey(today));
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: '',
@@ -405,6 +450,14 @@ const Events = () => {
     setSelectedDate(formatDateKey(parsedMonth));
   };
 
+  const openEventDetail = (event) => {
+    setSelectedEvent(event);
+  };
+
+  const closeEventDetail = () => {
+    setSelectedEvent(null);
+  };
+
   return (
     <>
       <Helmet>
@@ -526,7 +579,7 @@ const Events = () => {
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">Hoje</h2>
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                       {todayEvents.map((event) => (
-                        <EventCard key={`today-${event.id}`} event={event} />
+                        <EventCard key={`today-${event.id}`} event={event} onClick={openEventDetail} />
                       ))}
                     </div>
                   </div>
@@ -541,7 +594,7 @@ const Events = () => {
                   ) : (
                     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                       {upcomingEvents.map((event) => (
-                        <EventCard key={`upcoming-${event.id}`} event={event} />
+                        <EventCard key={`upcoming-${event.id}`} event={event} onClick={openEventDetail} />
                       ))}
                     </div>
                   )}
@@ -554,7 +607,7 @@ const Events = () => {
                         <h2 className="mb-4 text-2xl font-bold capitalize text-gray-900">{formatMonthLabel(monthKey)}</h2>
                         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                           {monthEvents.map((event) => (
-                            <EventCard key={event.id} event={event} />
+                            <EventCard key={event.id} event={event} onClick={openEventDetail} />
                           ))}
                         </div>
                       </div>
@@ -646,7 +699,9 @@ const Events = () => {
                           Nenhum evento encontrado para esse dia.
                         </div>
                       ) : (
-                        selectedDateEvents.map((event) => <CompactEventCard key={`calendar-${event.id}`} event={event} />)
+                        selectedDateEvents.map((event) => (
+                          <CompactEventCard key={`calendar-${event.id}`} event={event} onClick={openEventDetail} />
+                        ))
                       )}
                     </div>
                   </div>
@@ -656,6 +711,107 @@ const Events = () => {
           )}
         </div>
       </section>
+
+      <Dialog
+        open={Boolean(selectedEvent)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeEventDetail();
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedEvent?.title || 'Detalhes do evento'}</DialogTitle>
+            <DialogDescription>
+              {selectedEvent?.summary || 'Confira as informacoes completas deste compromisso da agenda paroquial.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedEvent ? (
+            <div className="space-y-5">
+              <div className="flex flex-wrap gap-2">
+                {selectedEvent.visibility === 'internal' ? (
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getVisibilityClasses(selectedEvent.visibility)}`}
+                  >
+                    <Shield className="mr-1 h-3.5 w-3.5" />
+                    {getVisibilityLabel(selectedEvent.visibility)}
+                  </span>
+                ) : null}
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(selectedEvent.status)}`}
+                >
+                  {getStatusLabel(selectedEvent.status)}
+                </span>
+                {selectedEvent.eventTypeName ? (
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                    {selectedEvent.eventTypeName}
+                  </span>
+                ) : null}
+                {selectedEvent.community ? (
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                    {selectedEvent.community}
+                  </span>
+                ) : null}
+                {selectedEvent.recurrenceRule ? (
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                    {getRecurrenceLabel(selectedEvent.recurrenceRule)}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <CalendarIcon className="mt-0.5 h-4 w-4 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Data e horario</p>
+                      <p className="mt-1 text-sm text-gray-600">{formatEventDate(selectedEvent)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <MapPin className="mt-0.5 h-4 w-4 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Local</p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {selectedEvent.resourceName || selectedEvent.locationText || 'Local a definir'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {selectedEvent.visibility === 'internal' ? (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+                  Este evento interno fica visivel apenas para usuarios autenticados com permissao de membro ou superior.
+                </div>
+              ) : null}
+
+              {selectedEvent.description ? (
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Descricao</h3>
+                  <p className="mt-2 text-sm leading-7 text-gray-700">{selectedEvent.description}</p>
+                </div>
+              ) : null}
+
+              {selectedEvent.organizerName || selectedEvent.organizerPhone || selectedEvent.organizerEmail ? (
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Responsavel</h3>
+                  <div className="mt-2 space-y-1 text-sm text-gray-700">
+                    {selectedEvent.organizerName ? <p>{selectedEvent.organizerName}</p> : null}
+                    {selectedEvent.organizerPhone ? <p>{selectedEvent.organizerPhone}</p> : null}
+                    {selectedEvent.organizerEmail ? <p>{selectedEvent.organizerEmail}</p> : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
