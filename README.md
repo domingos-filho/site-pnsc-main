@@ -197,6 +197,13 @@ Para evoluir a galeria para busca, filtros e escala por evento, veja:
 - `supabase/gallery_v2_schema.sql`
 - `supabase/gallery_v2_backfill.sql`
 
+## Agenda v2
+Para evoluir a agenda para eventos operacionais, reservas de espacos e aprovacoes, veja:
+
+- `docs/agenda-v2.md`
+- `supabase/agenda_v2_schema.sql`
+- `supabase/agenda_v2_backfill.sql`
+
 ## Publicar no GitHub
 ```bash
 git init

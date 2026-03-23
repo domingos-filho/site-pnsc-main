@@ -153,13 +153,14 @@ const GalleryAlbumDetail = () => {
             {Array.isArray(album.tags) && album.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-5">
                 {album.tags.map((tag) => (
-                  <span
+                  <Link
                     key={tag}
-                    className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-sm backdrop-blur-sm"
+                    to={`/galeria?tag=${encodeURIComponent(tag)}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-sm backdrop-blur-sm hover:bg-white/20"
                   >
                     <Tag className="h-3 w-3" />
                     {tag}
-                  </span>
+                  </Link>
                 ))}
               </div>
             )}

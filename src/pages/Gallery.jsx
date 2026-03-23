@@ -1,7 +1,7 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CalendarDays, FilterX, Image, MapPin, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -93,12 +93,14 @@ const buildVisiblePages = (currentPage, totalPages) => {
 
 const Gallery = () => {
   const { siteData, loading } = useData();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [albums, setAlbums] = useState([]);
   const [loadingGallery, setLoadingGallery] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedCommunity, setSelectedCommunity] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedTag, setSelectedTag] = useState(() => searchParams.get('tag') || 'all');
   const [sortBy, setSortBy] = useState('recent');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -173,6 +175,14 @@ const Gallery = () => {
     [albums]
   );
 
+  const tags = useMemo(
+    () =>
+      [...new Set(albums.flatMap((album) => (Array.isArray(album.tags) ? album.tags : [])).filter(Boolean))].sort(
+        (left, right) => left.localeCompare(right, 'pt-BR', { sensitivity: 'base' })
+      ),
+    [albums]
+  );
+
   const filteredAlbums = useMemo(() => {
     const normalizedSearch = normalizeFilterValue(deferredSearchTerm);
 
@@ -180,6 +190,9 @@ const Gallery = () => {
       const matchesYear = selectedYear === 'all' || String(album.year) === selectedYear;
       const matchesCommunity = selectedCommunity === 'all' || album.community === selectedCommunity;
       const matchesCategory = selectedCategory === 'all' || album.category === selectedCategory;
+      const matchesTag =
+        selectedTag === 'all' ||
+        (Array.isArray(album.tags) && album.tags.some((tag) => tag === selectedTag));
 
       const searchableText = [
         album.title,
@@ -195,9 +208,9 @@ const Gallery = () => {
       const matchesSearch =
         !normalizedSearch || normalizeFilterValue(searchableText).includes(normalizedSearch);
 
-      return matchesYear && matchesCommunity && matchesCategory && matchesSearch;
+      return matchesYear && matchesCommunity && matchesCategory && matchesTag && matchesSearch;
     });
-  }, [albums, deferredSearchTerm, selectedCategory, selectedCommunity, selectedYear]);
+  }, [albums, deferredSearchTerm, selectedCategory, selectedCommunity, selectedTag, selectedYear]);
 
   const sortedAlbums = useMemo(() => sortAlbums(filteredAlbums, sortBy), [filteredAlbums, sortBy]);
   const totalPages = Math.max(1, Math.ceil(sortedAlbums.length / ALBUMS_PER_PAGE));
@@ -209,7 +222,25 @@ const Gallery = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [deferredSearchTerm, selectedCategory, selectedCommunity, selectedYear, sortBy]);
+  }, [deferredSearchTerm, selectedCategory, selectedCommunity, selectedTag, selectedYear, sortBy]);
+
+  useEffect(() => {
+    const tagFromUrl = searchParams.get('tag') || 'all';
+    setSelectedTag(tagFromUrl);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (selectedTag === 'all') {
+      nextParams.delete('tag');
+    } else {
+      nextParams.set('tag', selectedTag);
+    }
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, selectedTag, setSearchParams]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -222,6 +253,7 @@ const Gallery = () => {
     setSelectedYear('all');
     setSelectedCommunity('all');
     setSelectedCategory('all');
+    setSelectedTag('all');
     setSortBy('recent');
   };
 
@@ -332,6 +364,39 @@ const Gallery = () => {
                 Limpar
               </Button>
             </div>
+
+            {tags.length > 0 && (
+              <div className="mt-5 border-t border-gray-100 pt-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700 mr-1">Tags:</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTag('all')}
+                    className={`rounded-full px-3 py-1.5 text-sm transition ${
+                      selectedTag === 'all'
+                        ? 'bg-blue-700 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {tags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setSelectedTag(tag)}
+                      className={`rounded-full px-3 py-1.5 text-sm transition ${
+                        selectedTag === tag
+                          ? 'bg-blue-700 text-white'
+                          : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      }`}
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -422,6 +487,19 @@ const Gallery = () => {
 
                           {(album.summary || album.description) && (
                             <p className="text-gray-600 line-clamp-2">{album.summary || album.description}</p>
+                          )}
+
+                          {Array.isArray(album.tags) && album.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {album.tags.slice(0, 3).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </div>
 
