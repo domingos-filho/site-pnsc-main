@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, MapPin, RefreshCw, Search } from 'lucide-react';
+import { Calendar, Clock, MapPin, RefreshCw, Search, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { loadPublicCalendarData } from '@/lib/calendarData';
 import { loadEvents } from '@/lib/supabaseData';
@@ -88,6 +89,24 @@ const getStatusClasses = (status) => {
   }
 };
 
+const getVisibilityLabel = (visibility) => {
+  switch (visibility) {
+    case 'internal':
+      return 'Interno';
+    default:
+      return 'Publico';
+  }
+};
+
+const getVisibilityClasses = (visibility) => {
+  switch (visibility) {
+    case 'internal':
+      return 'bg-violet-100 text-violet-700';
+    default:
+      return 'bg-emerald-100 text-emerald-700';
+  }
+};
+
 const formatEventDate = (event) => {
   const start = new Date(event.startsAt);
   const end = new Date(event.endsAt);
@@ -121,9 +140,19 @@ const EventCard = ({ event }) => (
         <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
         {event.summary ? <p className="text-sm text-gray-500 mt-1">{event.summary}</p> : null}
       </div>
-      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(event.status)}`}>
-        {getStatusLabel(event.status)}
-      </span>
+      <div className="flex flex-wrap justify-end gap-2">
+        {event.visibility === 'internal' ? (
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getVisibilityClasses(event.visibility)}`}
+          >
+            <Shield className="mr-1 h-3.5 w-3.5" />
+            {getVisibilityLabel(event.visibility)}
+          </span>
+        ) : null}
+        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(event.status)}`}>
+          {getStatusLabel(event.status)}
+        </span>
+      </div>
     </div>
 
     <div className="space-y-2 text-sm text-gray-600">
@@ -154,6 +183,7 @@ const EventCard = ({ event }) => (
 );
 
 const Events = () => {
+  const { user, isMember } = useAuth();
   const { toast } = useToast();
   const { siteData } = useData();
   const [events, setEvents] = useState([]);
@@ -270,6 +300,11 @@ const Events = () => {
     }, {});
   }, [filteredEvents]);
 
+  const internalEventCount = useMemo(
+    () => filteredEvents.filter((event) => event.visibility === 'internal').length,
+    [filteredEvents]
+  );
+
   return (
     <>
       <Helmet>
@@ -292,6 +327,12 @@ const Events = () => {
           {source === 'legacy' ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               A agenda publica esta exibindo o modo legado temporariamente.
+            </div>
+          ) : null}
+
+          {source === 'calendar' && user && isMember && internalEventCount > 0 ? (
+            <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+              Voce esta vendo eventos internos porque esta autenticado. Esses compromissos nao aparecem para visitantes.
             </div>
           ) : null}
 
