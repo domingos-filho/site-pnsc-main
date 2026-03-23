@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { useData } from '@/contexts/DataContext';
 import { loadPublicCalendarData } from '@/lib/calendarData';
 import { loadEvents } from '@/lib/supabaseData';
 
@@ -183,16 +182,14 @@ const EventCard = ({ event }) => (
 );
 
 const Events = () => {
-  const { user, isMember } = useAuth();
+  const { user, isMember, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const { siteData } = useData();
   const [events, setEvents] = useState([]);
   const [source, setSource] = useState('calendar');
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: '',
     month: 'all',
-    community: 'all',
     category: 'all',
     location: 'all',
   });
@@ -220,14 +217,9 @@ const Events = () => {
   };
 
   useEffect(() => {
+    if (authLoading) return;
     void refreshEvents();
-  }, []);
-
-  const communityOptions = useMemo(() => {
-    const fromSite = (siteData?.communities || []).map((community) => community.name).filter(Boolean);
-    const fromEvents = events.map((event) => event.community).filter(Boolean);
-    return Array.from(new Set([...fromSite, ...fromEvents])).sort((left, right) => left.localeCompare(right));
-  }, [siteData, events]);
+  }, [authLoading, user?.id]);
 
   const categoryOptions = useMemo(
     () =>
@@ -255,7 +247,6 @@ const Events = () => {
 
     return events.filter((event) => {
       if (filters.month !== 'all' && formatMonthKey(event.startsAt) !== filters.month) return false;
-      if (filters.community !== 'all' && event.community !== filters.community) return false;
       if (filters.category !== 'all' && (event.eventTypeName || event.category) !== filters.category) return false;
       if (filters.location !== 'all' && (event.resourceName || event.locationText) !== filters.location) return false;
 
@@ -346,7 +337,7 @@ const Events = () => {
                     id="agenda-search"
                     value={filters.search}
                     onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                    placeholder="Titulo, descricao, comunidade..."
+                    placeholder="Titulo, descricao, local..."
                     className="pl-9"
                   />
                 </div>
@@ -363,22 +354,6 @@ const Events = () => {
                   {monthOptions.map((monthKey) => (
                     <option key={monthKey} value={monthKey}>
                       {formatMonthLabel(monthKey)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="agenda-community">Comunidade</Label>
-                <select
-                  id="agenda-community"
-                  value={filters.community}
-                  onChange={(event) => setFilters((prev) => ({ ...prev, community: event.target.value }))}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="all">Todas</option>
-                  {communityOptions.map((community) => (
-                    <option key={community} value={community}>
-                      {community}
                     </option>
                   ))}
                 </select>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Plus, Edit, Trash2, Calendar, Clock, MapPin, Users, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, Clock, Shield, Users, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -458,7 +458,7 @@ const ManageEvents = () => {
                 <p className="text-sm text-gray-500">Internos</p>
                 <p className="text-3xl font-bold text-slate-700">{stats.internalCount}</p>
               </div>
-              <MapPin className="h-8 w-8 text-slate-500" />
+              <Shield className="h-8 w-8 text-slate-500" />
             </div>
           </div>
         </div>
