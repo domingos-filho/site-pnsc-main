@@ -31,14 +31,14 @@ import { getPastoralCategoryLabel, normalizePastoralItem } from '@/lib/pastorals
 const showSyncWarning = (toast) => {
   toast({
     title: 'Aviso',
-    description: 'Alteracoes salvas localmente, mas nao foi possivel sincronizar com o Supabase.',
+    description: 'Alterações salvas localmente, mas não foi possível sincronizar com o Supabase.',
   });
 };
 
 const CATEGORIES = {
   pastorais: 'Pastorais',
   movimentos: 'Movimentos',
-  servicos: 'Servicos',
+  servicos: 'Serviços',
 };
 
 const ItemRow = ({ item, onEdit, onDelete }) => (
@@ -86,7 +86,7 @@ const ItemRow = ({ item, onEdit, onDelete }) => (
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Excluir item?</AlertDialogTitle>
-              <AlertDialogDescription>Essa acao remove o item desta categoria.</AlertDialogDescription>
+              <AlertDialogDescription>Essa ação remove o item desta categoria.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -178,7 +178,7 @@ const SettingsPastoralsPanel = () => {
     if (!result.ok) {
       showSyncWarning(toast);
     } else {
-      toast({ title: 'Sucesso!', description: 'Item excluido.' });
+      toast({ title: 'Sucesso!', description: 'Item excluído.' });
     }
   };
 
@@ -239,12 +239,12 @@ const SettingsPastoralsPanel = () => {
               <Textarea id="pastoral-objective" name="objective" defaultValue={currentItem?.objective} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="pastoral-audience">Para quem e indicado</Label>
+              <Label htmlFor="pastoral-audience">Para quem é indicado</Label>
               <Input id="pastoral-audience" name="audience" defaultValue={currentItem?.audience} />
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-1">
-                <Label htmlFor="pastoral-contact-name">Responsavel principal</Label>
+                <Label htmlFor="pastoral-contact-name">Responsável principal</Label>
                 <Input
                   id="pastoral-contact-name"
                   name="contactName"
@@ -274,7 +274,7 @@ const SettingsPastoralsPanel = () => {
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-1">
-                <Label htmlFor="pastoral-meeting">Dia e horario</Label>
+                <Label htmlFor="pastoral-meeting">Dia e horário</Label>
                 <Input id="pastoral-meeting" name="meeting" defaultValue={currentItem?.meeting} />
               </div>
               <div className="space-y-1">
@@ -295,7 +295,7 @@ const SettingsPastoralsPanel = () => {
               <Input id="pastoral-image" name="image" defaultValue={currentItem?.image} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="pastoral-sort-order">Ordem de exibicao</Label>
+              <Label htmlFor="pastoral-sort-order">Ordem de exibição</Label>
               <Input
                 id="pastoral-sort-order"
                 name="sortOrder"
@@ -321,7 +321,7 @@ const SettingsPastoralsPanel = () => {
                   defaultChecked={currentItem?.featured ?? false}
                   className="h-4 w-4 rounded border-gray-300"
                 />
-                Destacar na pagina
+                Destacar na página
               </label>
             </div>
 
@@ -341,4 +341,3 @@ const SettingsPastoralsPanel = () => {
 };
 
 export default SettingsPastoralsPanel;
-

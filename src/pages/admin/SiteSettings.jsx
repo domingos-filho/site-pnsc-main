@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
@@ -1897,7 +1897,7 @@ const SettingsContactAbout = () => {
             <Input id="phone" name="phone" defaultValue={siteData.contact.phone} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">E-mail</Label>
             <Input id="email" name="email" type="email" defaultValue={siteData.contact.email} />
           </div>
           <div className="space-y-1">
@@ -1980,3 +1980,4 @@ const SiteSettings = () => {
 };
 
 export default SiteSettings;
+

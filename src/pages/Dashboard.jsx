@@ -23,7 +23,7 @@ const Dashboard = () => {
       name: 'Gerenciar Agenda',
       path: '/dashboard/events',
       icon: Calendar,
-      description: 'Cadastre, edite e acompanhe eventos e ocupacao dos espacos.',
+      description: 'Cadastre, edite e acompanhe eventos e ocupação dos espaços.',
       roles: ['secretary', 'admin'],
       color: 'text-blue-600',
     },
@@ -68,7 +68,7 @@ const Dashboard = () => {
             <h1 className="text-4xl md:text-5xl font-bold mb-4">Dashboard</h1>
             <p className="text-xl text-blue-100">
               Bem-vindo, {user.name}! (
-              {user.role === 'admin' ? 'Administrador' : user.role === 'secretary' ? 'Secretario' : 'Membro'})
+              {user.role === 'admin' ? 'Administrador' : user.role === 'secretary' ? 'Secretário' : 'Membro'})
             </p>
           </motion.div>
         </div>
@@ -76,7 +76,7 @@ const Dashboard = () => {
 
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {accessibleItems.map((item, index) => {
               const Icon = item.icon;
               return (
@@ -85,11 +85,11 @@ const Dashboard = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all flex flex-col"
+                  className="flex flex-col rounded-xl bg-white p-6 shadow-lg transition-all hover:shadow-xl"
                 >
-                  <Icon className={`h-12 w-12 ${item.color} mb-4`} />
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">{item.name}</h3>
-                  <p className="text-gray-600 mb-4 flex-grow">{item.description}</p>
+                  <Icon className={`mb-4 h-12 w-12 ${item.color}`} />
+                  <h3 className="mb-2 text-xl font-bold text-gray-800">{item.name}</h3>
+                  <p className="mb-4 flex-grow text-gray-600">{item.description}</p>
                   <Link to={item.path}>
                     <Button className="w-full">Acessar</Button>
                   </Link>

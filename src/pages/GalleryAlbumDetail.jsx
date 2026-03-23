@@ -18,7 +18,7 @@ const formatAlbumDate = (album) => {
     }
   }
 
-  return album?.year || 'Data nao informada';
+  return album?.year || 'Data não informada';
 };
 
 const getAlbumPhotoCount = (album) => Number(album?.photoCount || album?.images?.length || 0);
@@ -56,7 +56,7 @@ const GalleryAlbumDetail = () => {
 
         setAlbum(remoteAlbum || legacyMatch);
       } catch (error) {
-        console.error('Falha ao carregar album da galeria', error);
+        console.error('Falha ao carregar álbum da galeria', error);
         if (isMounted) {
           setAlbum(legacyMatch);
         }
@@ -82,9 +82,9 @@ const GalleryAlbumDetail = () => {
     return (
       <div className="container mx-auto px-4 py-20">
         <div className="max-w-2xl mx-auto text-center bg-white rounded-2xl shadow-sm border border-gray-100 p-10">
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">Album nao encontrado</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-3">Álbum não encontrado</h1>
           <p className="text-gray-600 mb-6">
-            O evento que voce tentou abrir nao existe ou ainda nao foi publicado.
+            O evento que você tentou abrir não existe ou ainda não foi publicado.
           </p>
           <Link to="/galeria">
             <Button>Voltar para a galeria</Button>
@@ -196,7 +196,7 @@ const GalleryAlbumDetail = () => {
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center text-gray-600">
-              Nenhuma foto publicada neste album.
+              Nenhuma foto publicada neste álbum.
             </div>
           )}
         </div>

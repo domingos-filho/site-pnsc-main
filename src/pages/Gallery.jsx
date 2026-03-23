@@ -22,7 +22,7 @@ const formatAlbumDate = (album) => {
     return String(album.year);
   }
 
-  return 'Data nao informada';
+  return 'Data não informada';
 };
 
 const ALBUMS_PER_PAGE = 9;
@@ -132,7 +132,7 @@ const Gallery = () => {
           setAlbums(remoteAlbums);
         }
       } catch (error) {
-        console.error('Falha ao carregar galeria publica', error);
+        console.error('Falha ao carregar galeria pública', error);
         if (isMounted) {
           setAlbums(legacyAlbums);
         }
@@ -253,10 +253,10 @@ const Gallery = () => {
   return (
     <>
       <Helmet>
-        <title>Galeria de Fotos - Paroquia de Nossa Senhora da Conceicao</title>
+        <title>Galeria de Fotos - Paróquia de Nossa Senhora da Conceição</title>
         <meta
           name="description"
-          content="Pesquise eventos, comunidades e celebracoes na galeria da Paroquia de Nossa Senhora da Conceicao."
+          content="Pesquise eventos, comunidades e celebrações na galeria da Paróquia de Nossa Senhora da Conceição."
         />
       </Helmet>
 
@@ -265,7 +265,7 @@ const Gallery = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">Galeria de Eventos</h1>
             <p className="text-lg md:text-xl text-blue-100 max-w-3xl mx-auto">
-              Pesquise por festas, comunidades e celebracoes especificas para encontrar os momentos da paroquia.
+              Pesquise por festas, comunidades e celebrações específicas para encontrar os momentos da paróquia.
             </p>
           </motion.div>
         </div>
@@ -382,7 +382,7 @@ const Gallery = () => {
               </h2>
               {sortedAlbums.length > 0 && (
                 <p className="text-sm text-gray-500 mt-1">
-                  Pagina {currentPage} de {totalPages}
+                  Página {currentPage} de {totalPages}
                 </p>
               )}
             </div>
@@ -400,8 +400,8 @@ const Gallery = () => {
                 <option value="recent">Mais recentes</option>
                 <option value="oldest">Mais antigas</option>
                 <option value="photos-desc">Mais fotos</option>
-                <option value="title-asc">Titulo A-Z</option>
-                <option value="title-desc">Titulo Z-A</option>
+                <option value="title-asc">Título A-Z</option>
+                <option value="title-desc">Título Z-A</option>
               </select>
             </div>
           </div>
@@ -491,7 +491,7 @@ const Gallery = () => {
                         </div>
 
                         <div className="flex items-center justify-between pt-1 text-blue-700 font-semibold">
-                          <span>Ver album</span>
+                          <span>Ver álbum</span>
                           <ArrowRight className="h-4 w-4" />
                         </div>
                       </div>
@@ -541,7 +541,7 @@ const Gallery = () => {
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
               >
-                Proxima
+                Próxima
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </div>

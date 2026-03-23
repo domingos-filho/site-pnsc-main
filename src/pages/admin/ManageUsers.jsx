@@ -20,7 +20,7 @@ import { supabase, isSupabaseReady } from '@/lib/supabaseClient';
 
 const roleLabels = {
   admin: 'Administrador',
-  secretary: 'Secretario',
+  secretary: 'Secretário',
   member: 'Membro',
 };
 
@@ -42,8 +42,8 @@ const ManageUsers = () => {
   const fetchProfiles = async () => {
     if (!isSupabaseReady) {
       toast({
-        title: 'Supabase nao configurado',
-        description: 'Defina as variaveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.',
+        title: 'Supabase não configurado',
+        description: 'Defina as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.',
         variant: 'destructive',
       });
       return;
@@ -58,7 +58,7 @@ const ManageUsers = () => {
     if (error) {
       toast({
         title: 'Erro',
-        description: 'Nao foi possivel carregar os perfis.',
+        description: 'Não foi possível carregar os perfis.',
         variant: 'destructive',
       });
     } else {
@@ -100,7 +100,7 @@ const ManageUsers = () => {
     if (error) {
       toast({
         title: 'Erro',
-        description: 'Nao foi possivel atualizar o perfil.',
+        description: 'Não foi possível atualizar o perfil.',
         variant: 'destructive',
       });
     } else {
@@ -129,7 +129,7 @@ const ManageUsers = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Gerenciar Perfis</h1>
             <p className="text-sm text-gray-500">
-              Crie usuarios no Supabase Auth. Quando fizerem login, o perfil aparece aqui para ajuste de papel.
+              Crie usuários no Supabase Auth. Quando fizerem login, o perfil aparece aqui para ajuste de papel.
             </p>
           </div>
           <Button variant="outline" onClick={fetchProfiles} disabled={isLoading}>
@@ -151,13 +151,13 @@ const ManageUsers = () => {
                     Nome
                   </th>
                   <th scope="col" className="px-6 py-3">
-                    Email
+                    E-mail
                   </th>
                   <th scope="col" className="px-6 py-3">
                     Perfil
                   </th>
                   <th scope="col" className="px-6 py-3 text-right">
-                    Acoes
+                    Ações
                   </th>
                 </tr>
               </thead>
@@ -195,7 +195,7 @@ const ManageUsers = () => {
                                 <Input id="name" name="name" defaultValue={currentProfile?.name || ''} />
                               </div>
                               <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
+                                <Label htmlFor="email">E-mail</Label>
                                 <Input id="email" name="email" value={currentProfile?.email || ''} disabled />
                               </div>
                               <div className="space-y-2">
@@ -210,7 +210,7 @@ const ManageUsers = () => {
                                     className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10"
                                   >
                                     <option value="member">Membro</option>
-                                    <option value="secretary">Secretario</option>
+                                    <option value="secretary">Secretário</option>
                                     <option value="admin">Administrador</option>
                                   </select>
                                 </div>

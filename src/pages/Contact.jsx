@@ -121,8 +121,8 @@ const Contact = () => {
       form.reset();
     } catch (error) {
       toast({
-        title: 'Mensagem nao enviada!',
-        description: error?.message || 'Nao foi possivel enviar sua mensagem agora. Tente novamente.',
+        title: 'Mensagem não enviada!',
+        description: error?.message || 'Não foi possível enviar sua mensagem agora. Tente novamente.',
         variant: 'destructive',
       });
     } finally {
@@ -137,10 +137,10 @@ const Contact = () => {
   return (
     <>
       <Helmet>
-        <title>Contato - Paroquia de Nossa Senhora da Conceicao</title>
+        <title>Contato - Paróquia de Nossa Senhora da Conceição</title>
         <meta
           name="description"
-          content="Entre em contato com a Paroquia de Nossa Senhora da Conceicao. Encontre nosso endereco, telefone e horarios."
+          content="Entre em contato com a Paróquia de Nossa Senhora da Conceição. Encontre nosso endereço, telefone e horários."
         />
       </Helmet>
 
@@ -160,7 +160,7 @@ const Contact = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2 }}
           >
-            Estamos aqui para ajudar. Entre em contato ou faca-nos uma visita.
+            Estamos aqui para ajudar. Entre em contato ou faça-nos uma visita.
           </motion.p>
         </header>
 
@@ -172,7 +172,7 @@ const Contact = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <ContactInfoCard icon={MapPin} title="Nosso Endereco">
+              <ContactInfoCard icon={MapPin} title="Nosso Endereço">
                 {address}
               </ContactInfoCard>
               <ContactInfoCard icon={Phone} title="Telefone">
@@ -180,7 +180,7 @@ const Contact = () => {
                   {phone}
                 </a>
               </ContactInfoCard>
-              <ContactInfoCard icon={Mail} title="Email">
+              <ContactInfoCard icon={Mail} title="E-mail">
                 <a href={`mailto:${email}`} className="hover:text-blue-700">
                   {email}
                 </a>
@@ -237,7 +237,7 @@ const Contact = () => {
                   <Input id="name" name="name" autoComplete="name" required />
                 </div>
                 <div>
-                  <Label htmlFor="email">Seu Email</Label>
+                  <Label htmlFor="email">Seu E-mail</Label>
                   <Input type="email" id="email" name="email" autoComplete="email" required />
                 </div>
                 <div>
@@ -259,7 +259,7 @@ const Contact = () => {
 
         <div className="w-full h-80 bg-gray-100">
           <iframe
-            title="Mapa da Paroquia"
+            title="Mapa da Paróquia"
             src={wazeEmbedUrl}
             className="w-full h-full border-0"
             loading="lazy"

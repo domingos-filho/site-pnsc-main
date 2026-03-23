@@ -222,7 +222,7 @@ const fetchResources = async ({ publicOnly = true } = {}) => {
   const { data, error } = await withTimeout(
     query,
     REQUEST_TIMEOUT_MS,
-    'Tempo limite ao carregar espacos.'
+    'Tempo limite ao carregar espaços.'
   );
 
   if (error) throw error;
@@ -256,7 +256,7 @@ const fetchEventResourceLinks = async () => {
       .select('id, event_id, resource_id, starts_at, ends_at, setup_minutes, teardown_minutes, notes')
       .order('created_at', { ascending: true }),
     REQUEST_TIMEOUT_MS,
-    'Tempo limite ao carregar vinculos de espaco.'
+    'Tempo limite ao carregar vínculos de espaço.'
   );
 
   if (error) throw error;
@@ -273,15 +273,15 @@ const buildEventPayload = (input, resources) => {
   const endsAt = new Date(input.endsAt);
 
   if (!title) {
-    throw new Error('Informe o titulo do evento.');
+    throw new Error('Informe o título do evento.');
   }
 
   if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
-    throw new Error('Informe inicio e fim validos para o evento.');
+    throw new Error('Informe início e fim válidos para o evento.');
   }
 
   if (endsAt <= startsAt) {
-    throw new Error('O horario de termino precisa ser maior que o de inicio.');
+    throw new Error('O horário de término precisa ser maior que o de início.');
   }
 
   const isCommunityResource = input.resourceId === COMMUNITY_RESOURCE_VALUE;
@@ -326,7 +326,7 @@ const syncEventResource = async ({ eventId, resourceId, startsAt, endsAt }) => {
       .select('id, resource_id')
       .eq('event_id', eventId),
     REQUEST_TIMEOUT_MS,
-    'Tempo limite ao carregar o espaco do evento.'
+    'Tempo limite ao carregar o espaço do evento.'
   );
 
   if (error) throw error;
@@ -341,7 +341,7 @@ const syncEventResource = async ({ eventId, resourceId, startsAt, endsAt }) => {
           .delete()
           .in('id', existingLinks.map((link) => link.id)),
         REQUEST_TIMEOUT_MS,
-        'Tempo limite ao remover o espaco do evento.'
+        'Tempo limite ao remover o espaço do evento.'
       );
 
       if (deleteError) throw deleteError;
@@ -359,7 +359,7 @@ const syncEventResource = async ({ eventId, resourceId, startsAt, endsAt }) => {
         .delete()
         .in('id', staleLinks.map((link) => link.id)),
       REQUEST_TIMEOUT_MS,
-      'Tempo limite ao atualizar o espaco do evento.'
+      'Tempo limite ao atualizar o espaço do evento.'
     );
 
     if (deleteError) throw deleteError;
@@ -375,7 +375,7 @@ const syncEventResource = async ({ eventId, resourceId, startsAt, endsAt }) => {
         })
         .eq('id', matchingLink.id),
       REQUEST_TIMEOUT_MS,
-      'Tempo limite ao atualizar o vinculo do espaco.'
+      'Tempo limite ao atualizar o vínculo do espaço.'
     );
 
     if (updateError) throw updateError;
@@ -405,7 +405,7 @@ export const loadPublicCalendarData = async () => {
       eventTypes: [],
       resources: [],
       source: 'unavailable',
-      error: new Error('Supabase nao configurado.'),
+      error: new Error('Supabase não configurado.'),
     };
   }
 
@@ -446,7 +446,7 @@ export const loadAdminCalendarData = async () => {
       events: [],
       eventTypes: [],
       resources: [],
-      error: new Error('Supabase nao configurado.'),
+      error: new Error('Supabase não configurado.'),
     };
   }
 
@@ -482,7 +482,7 @@ export const loadAdminCalendarData = async () => {
 
 export const createCalendarEvent = async (input, resources = []) => {
   if (!isSupabaseReady) {
-    throw new Error('Supabase nao configurado.');
+    throw new Error('Supabase não configurado.');
   }
 
   const payload = buildEventPayload(input, resources);
@@ -510,7 +510,7 @@ export const createCalendarEvent = async (input, resources = []) => {
 
 export const updateCalendarEvent = async (id, input, resources = []) => {
   if (!isSupabaseReady) {
-    throw new Error('Supabase nao configurado.');
+    throw new Error('Supabase não configurado.');
   }
 
   const payload = buildEventPayload(input, resources);
@@ -539,7 +539,7 @@ export const updateCalendarEvent = async (id, input, resources = []) => {
 
 export const deleteCalendarEvent = async (id) => {
   if (!isSupabaseReady) {
-    throw new Error('Supabase nao configurado.');
+    throw new Error('Supabase não configurado.');
   }
 
   const { error } = await withTimeout(

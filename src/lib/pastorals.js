@@ -10,8 +10,8 @@ const CATEGORY_CONFIG = {
     routePrefix: 'movimento',
   },
   servicos: {
-    label: 'Servicos',
-    shortLabel: 'Servico',
+    label: 'Serviços',
+    shortLabel: 'Serviço',
     routePrefix: 'servico',
   },
 };
@@ -157,4 +157,3 @@ export const pastoralMatchesSearch = (item, searchTerm) => {
 
   return haystack.includes(normalizedSearch);
 };
-

@@ -11,7 +11,7 @@ export const slugify = (value) =>
 const normalizeText = (value) => String(value || '').trim();
 
 const normalizeAlbumTitle = (album, fallbackIndex = 0) =>
-  normalizeText(album?.title || album?.name) || `Album ${fallbackIndex + 1}`;
+  normalizeText(album?.title || album?.name) || `Álbum ${fallbackIndex + 1}`;
 
 const buildAlbumFallbackId = (album, fallbackIndex = 0) => {
   const title = normalizeAlbumTitle(album, fallbackIndex);
@@ -22,7 +22,7 @@ const buildAlbumFallbackId = (album, fallbackIndex = 0) => {
   return slug ? `album-${slug}` : `album-${fallbackIndex + 1}`;
 };
 
-export const normalizeGalleryImage = (image, albumTitle = 'Album', index = 0) => {
+export const normalizeGalleryImage = (image, albumTitle = 'Álbum', index = 0) => {
   if (!image) return null;
 
   if (typeof image === 'string') {

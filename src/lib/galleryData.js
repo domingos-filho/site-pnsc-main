@@ -91,7 +91,7 @@ const normalizeCollectionRow = (row) => {
   return {
     id: row.id,
     slug: row.slug,
-    title: row.title || 'Album',
+    title: row.title || 'Álbum',
     year: derivedYear ? String(derivedYear) : '',
     displayYear: row.display_year ? String(row.display_year) : '',
     searchYear: row.search_year ? String(row.search_year) : '',
@@ -112,7 +112,7 @@ const normalizeCollectionRow = (row) => {
   };
 };
 
-const normalizeMediaRow = (row, albumTitle = 'Album', index = 0) => {
+const normalizeMediaRow = (row, albumTitle = 'Álbum', index = 0) => {
   const image = normalizeGalleryImage(
     {
       id: row.id,
@@ -157,7 +157,7 @@ const sortCollections = (collections) =>
 
 const ensureSupabase = () => {
   if (!isSupabaseReady || !supabase) {
-    throw new Error('Supabase nao configurado para a galeria.');
+    throw new Error('Supabase não configurado para a galeria.');
   }
 };
 
@@ -243,7 +243,7 @@ export const loadGalleryCollections = async ({ publishedOnly = false, includeMed
   const { data: collectionRows, error: collectionsError } = await withTimeout(
     collectionsQuery,
     REQUEST_TIMEOUT_MS,
-    'Tempo limite ao carregar albuns da galeria.'
+    'Tempo limite ao carregar álbuns da galeria.'
   );
 
   if (collectionsError) {
@@ -281,7 +281,7 @@ export const loadGalleryCollectionBySlug = async (slug, { publishedOnly = false 
   const { data, error } = await withTimeout(
     collectionQuery,
     REQUEST_TIMEOUT_MS,
-    'Tempo limite ao carregar album da galeria.'
+    'Tempo limite ao carregar álbum da galeria.'
   );
 
   if (error) {
@@ -303,11 +303,11 @@ export const createGalleryCollection = async (input) => {
 
   const payload = normalizeCollectionInput(input);
   if (!payload.title) {
-    throw new Error('Informe o nome do album.');
+    throw new Error('Informe o nome do álbum.');
   }
 
   if (!payload.display_year) {
-    throw new Error("O campo 'Ano' e obrigatorio.");
+    throw new Error("O campo 'Ano' é obrigatório.");
   }
 
   const { data, error } = await withTimeout(
@@ -331,16 +331,16 @@ export const updateGalleryCollection = async (id, input) => {
   ensureSupabase();
 
   if (!id) {
-    throw new Error('Album invalido.');
+    throw new Error('Álbum inválido.');
   }
 
   const payload = normalizeCollectionInput(input);
   if (!payload.title) {
-    throw new Error('Informe o nome do album.');
+    throw new Error('Informe o nome do álbum.');
   }
 
   if (!payload.display_year) {
-    throw new Error("O campo 'Ano' e obrigatorio.");
+    throw new Error("O campo 'Ano' é obrigatório.");
   }
 
   const { data, error } = await withTimeout(
@@ -365,7 +365,7 @@ export const deleteGalleryCollection = async (id) => {
   ensureSupabase();
 
   if (!id) {
-    throw new Error('Album invalido.');
+    throw new Error('Álbum inválido.');
   }
 
   const { error } = await withTimeout(
@@ -396,7 +396,7 @@ export const createGalleryMediaBatch = async (collectionId, mediaItems = []) => 
   ensureSupabase();
 
   if (!collectionId) {
-    throw new Error('Album invalido.');
+    throw new Error('Álbum inválido.');
   }
 
   const payload = mediaItems
@@ -434,7 +434,7 @@ export const deleteGalleryMedia = async (mediaId) => {
   ensureSupabase();
 
   if (!mediaId) {
-    throw new Error('Foto invalida.');
+    throw new Error('Foto inválida.');
   }
 
   const { error } = await withTimeout(
@@ -452,7 +452,7 @@ export const setGalleryCollectionCover = async (collectionId, mediaId) => {
   ensureSupabase();
 
   if (!collectionId || !mediaId) {
-    throw new Error('Album ou foto invalida para definir capa.');
+    throw new Error('Álbum ou foto inválida para definir capa.');
   }
 
   const { data, error } = await withTimeout(
@@ -463,7 +463,7 @@ export const setGalleryCollectionCover = async (collectionId, mediaId) => {
       .select(COLLECTION_SELECT_FIELDS)
       .single(),
     REQUEST_TIMEOUT_MS,
-    'Tempo limite ao definir capa do album.'
+    'Tempo limite ao definir capa do álbum.'
   );
 
   if (error) {
@@ -477,7 +477,7 @@ export const reorderGalleryMedia = async (collectionId, orderedMediaIds = []) =>
   ensureSupabase();
 
   if (!collectionId) {
-    throw new Error('Album invalido.');
+    throw new Error('Álbum inválido.');
   }
 
   const normalizedIds = orderedMediaIds.map((id) => String(id || '').trim()).filter(Boolean);

@@ -71,7 +71,7 @@ const PastoralCard = ({ item }) => {
           <div className="mt-10">
             <h3 className="text-2xl font-bold leading-tight">{item.name}</h3>
             <p className="mt-2 max-w-xl text-sm text-white/90">
-              {item.summary || item.objective || 'Conheca esse grupo e participe da vida pastoral da paroquia.'}
+              {item.summary || item.objective || 'Conheça esse grupo e participe da vida pastoral da paróquia.'}
             </p>
           </div>
         </div>
@@ -80,12 +80,12 @@ const PastoralCard = ({ item }) => {
       <div className="space-y-4 p-6">
         <div className="grid gap-3 text-sm text-gray-600 sm:grid-cols-2">
           <div className="rounded-2xl bg-gray-50 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Responsavel</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Responsável</p>
             <p className="mt-1 font-medium text-gray-800">{item.contactName || item.responsible || 'A definir'}</p>
           </div>
           <div className="rounded-2xl bg-gray-50 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Encontros</p>
-            <p className="mt-1 font-medium text-gray-800">{item.meeting || 'Conforme calendario'}</p>
+            <p className="mt-1 font-medium text-gray-800">{item.meeting || 'Conforme calendário'}</p>
           </div>
         </div>
 
@@ -166,10 +166,10 @@ const Pastorals = () => {
   return (
     <>
       <Helmet>
-        <title>Pastorais, Movimentos e Servicos - Paroquia de Nossa Senhora da Conceicao</title>
+        <title>Pastorais, Movimentos e Serviços - Paróquia de Nossa Senhora da Conceição</title>
         <meta
           name="description"
-          content="Conheca os grupos, movimentos e servicos da paroquia, descubra como participar e encontre o caminho ideal para servir."
+          content="Conheça os grupos, movimentos e serviços da paróquia, descubra como participar e encontre o caminho ideal para servir."
         />
       </Helmet>
 
@@ -181,10 +181,10 @@ const Pastorals = () => {
                 Vida pastoral da comunidade
               </span>
               <h1 className="mt-5 text-4xl font-bold leading-tight md:text-6xl">
-                Encontre onde servir, caminhar e crescer na fe.
+                Encontre onde servir, caminhar e crescer na fé.
               </h1>
               <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-200">
-                Conheca as pastorais, movimentos e servicos da paroquia, veja como participar e encontre o grupo que
+                Conheça as pastorais, movimentos e serviços da paróquia, veja como participar e encontre o grupo que
                 melhor combina com seu momento e seus dons.
               </p>
             </motion.div>
@@ -202,7 +202,7 @@ const Pastorals = () => {
                     id="pastoral-search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Nome, objetivo, encontros, participacao..."
+                    placeholder="Nome, objetivo, encontros, participação..."
                     className="pl-9"
                   />
                 </div>
@@ -272,7 +272,7 @@ const Pastorals = () => {
                       <div>
                         <h3 className="text-2xl font-bold text-slate-900">{section.title}</h3>
                         <p className="text-sm text-slate-600">
-                          {section.items.length} item{section.items.length === 1 ? '' : 'ns'} nesta categoria.
+                          {section.items.length} grupo{section.items.length === 1 ? '' : 's'} nesta categoria.
                         </p>
                       </div>
                     </div>

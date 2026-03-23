@@ -63,7 +63,7 @@ const createResizedImageFile = async (
   const height = sourceImage.height || sourceImage.naturalHeight || 0;
 
   if (!width || !height) {
-    throw new Error('Nao foi possivel ler as dimensoes da imagem.');
+    throw new Error('Não foi possível ler as dimensões da imagem.');
   }
 
   const scale = Math.min(maxWidth / width, maxHeight / height, 1);
@@ -76,7 +76,7 @@ const createResizedImageFile = async (
 
   const ctx = canvas.getContext('2d');
   if (!ctx) {
-    throw new Error('Nao foi possivel criar o canvas da imagem.');
+    throw new Error('Não foi possível criar o canvas da imagem.');
   }
 
   ctx.drawImage(sourceImage, 0, 0, targetWidth, targetHeight);
@@ -123,19 +123,19 @@ const formatStorageError = (error, fallbackMessage) => {
   const normalized = message.toLowerCase();
 
   if (normalized.includes('failed to fetch') || normalized.includes('network')) {
-    return 'Falha de conexao com o Supabase Storage. Verifique sua internet e o URL do projeto.';
+    return 'Falha de conexão com o Supabase Storage. Verifique sua internet e o URL do projeto.';
   }
   if (message.includes('row-level security')) {
-    return 'Permissao negada no Storage. Verifique as politicas de RLS do bucket.';
+    return 'Permissão negada no Storage. Verifique as políticas de RLS do bucket.';
   }
   if (status === 404 || (normalized.includes('bucket') && normalized.includes('not found'))) {
-    return 'Bucket do Storage nao encontrado. Verifique o nome configurado em VITE_SUPABASE_BUCKET.';
+    return 'Bucket do Storage não encontrado. Verifique o nome configurado em VITE_SUPABASE_BUCKET.';
   }
   if (status === 403 || normalized.includes('permission denied')) {
-    return 'Permissao negada no Storage. Verifique as politicas de acesso do bucket.';
+    return 'Permissão negada no Storage. Verifique as políticas de acesso do bucket.';
   }
   if (message.includes('JWT')) {
-    return 'Chave anon invalida ou expirada. Verifique as credenciais do Supabase.';
+    return 'Chave anônima inválida ou expirada. Verifique as credenciais do Supabase.';
   }
   return message;
 };
@@ -154,12 +154,12 @@ export const uploadImageFile = async ({
   mediumQuality = 0.86,
 } = {}) => {
   if (!supabase) {
-    throw new Error('Supabase nao configurado.');
+    throw new Error('Supabase não configurado.');
   }
 
   const bucket = normalizeBucket(getSupabaseBucket());
   if (!bucket) {
-    throw new Error('Bucket do Storage nao configurado.');
+    throw new Error('Bucket do Storage não configurado.');
   }
 
   const fileName = safeFileName(file.name || 'imagem');
@@ -186,7 +186,7 @@ export const uploadImageFile = async ({
         bucket,
         path: originalPath,
         file,
-        timeoutMessage: 'Tempo limite no upload. Verifique as politicas do Storage e sua conexao.',
+        timeoutMessage: 'Tempo limite no upload. Verifique as políticas do Storage e sua conexão.',
       });
     } catch (error) {
       throw new Error(formatStorageError(error, 'Falha ao enviar a imagem.'));
@@ -212,10 +212,10 @@ export const uploadImageFile = async ({
         bucket,
         path: mediumPath,
         file: mediumFile,
-        timeoutMessage: 'Tempo limite no upload da versao media.',
+        timeoutMessage: 'Tempo limite no upload da versão média.',
       });
     } catch (error) {
-      console.warn('Falha ao gerar/enviar versao media', error);
+      console.warn('Falha ao gerar/enviar versão média', error);
       mediumUrl = null;
       mediumPath = null;
     }
@@ -280,7 +280,7 @@ export const deleteStoragePaths = async (paths) => {
 
   const bucket = normalizeBucket(getSupabaseBucket());
   if (!bucket) {
-    throw new Error('Bucket do Storage nao configurado.');
+    throw new Error('Bucket do Storage não configurado.');
   }
 
   const { error } = await withTimeout(

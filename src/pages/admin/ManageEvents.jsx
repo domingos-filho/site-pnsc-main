@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import {
@@ -67,12 +67,12 @@ const STATUS_OPTIONS = [
 ];
 
 const VISIBILITY_OPTIONS = [
-  { value: 'public', label: 'Publico' },
+  { value: 'public', label: 'Público' },
   { value: 'internal', label: 'Interno' },
 ];
 
 const RECURRENCE_OPTIONS = [
-  { value: '', label: 'Sem recorrencia' },
+  { value: '', label: 'Sem recorrência' },
   { value: 'weekly', label: 'Semanal' },
   { value: 'monthly', label: 'Mensal' },
   { value: 'yearly', label: 'Anual' },
@@ -185,7 +185,7 @@ const formatEventDateLabel = (event) => {
     })}`;
   }
 
-  return `${start.toLocaleString('pt-BR')} ate ${end.toLocaleString('pt-BR')}`;
+  return `${start.toLocaleString('pt-BR')} até ${end.toLocaleString('pt-BR')}`;
 };
 
 const formatEventTimeSummary = (event) => {
@@ -390,7 +390,7 @@ const ManageEvents = () => {
 
   const weekRangeLabel = useMemo(() => {
     if (weekDays.length === 0) return '';
-    return `${weekDays[0].toLocaleDateString('pt-BR')} ate ${weekDays[6].toLocaleDateString('pt-BR')}`;
+    return `${weekDays[0].toLocaleDateString('pt-BR')} até ${weekDays[6].toLocaleDateString('pt-BR')}`;
   }, [weekDays]);
 
   const openDialog = (event = null) => {
@@ -530,7 +530,7 @@ const ManageEvents = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Gerenciar Agenda</h1>
             <p className="text-gray-600 mt-2">
-              Eventos publicos, reunioes internas e ocupacao dos espacos da paroquia.
+              Eventos públicos, reuniões internas e ocupação dos espaços da paróquia.
             </p>
           </div>
           <div className="flex gap-3">
@@ -567,7 +567,7 @@ const ManageEvents = () => {
           <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Publicos</p>
+                <p className="text-sm text-gray-500">Públicos</p>
                 <p className="text-3xl font-bold text-blue-600">{stats.publicCount}</p>
               </div>
               <Users className="h-8 w-8 text-blue-500" />
@@ -592,7 +592,7 @@ const ManageEvents = () => {
                 id="events-search"
                 value={filters.search}
                 onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                placeholder="Titulo, local, comunidade..."
+                placeholder="Título, local, comunidade..."
               />
             </div>
             <div>
@@ -645,11 +645,11 @@ const ManageEvents = () => {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Evento</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Data</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Espaco</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Espaço</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Tipo</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Visibilidade</th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Acoes</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
@@ -671,12 +671,12 @@ const ManageEvents = () => {
                           <td className="px-6 py-4 align-top">
                             <div className="font-semibold text-gray-900">{event.title}</div>
                             <div className="text-sm text-gray-500">
-                              {[event.community, event.eventTypeName].filter(Boolean).join(' / ') || 'Sem classificacao'}
+                              {[event.community, event.eventTypeName].filter(Boolean).join(' / ') || 'Sem classificação'}
                             </div>
                           </td>
                           <td className="px-6 py-4 align-top text-sm text-gray-600">{formatEventDateLabel(event)}</td>
                           <td className="px-6 py-4 align-top text-sm text-gray-600">
-                            {event.resourceName || event.locationText || 'Sem espaco vinculado'}
+                            {event.resourceName || event.locationText || 'Sem espaço vinculado'}
                           </td>
                           <td className="px-6 py-4 align-top text-sm text-gray-600">{event.eventTypeName || 'Sem tipo'}</td>
                           <td className="px-6 py-4 align-top">
@@ -704,7 +704,7 @@ const ManageEvents = () => {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Excluir evento?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Essa acao removera o evento e seus vinculos de espaco da agenda v2.
+                                      Essa ação removerá o evento e seus vínculos de espaço da agenda v2.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -735,7 +735,7 @@ const ManageEvents = () => {
                 <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-2xl font-bold capitalize text-gray-900">{formatMonthLabel(formatMonthKey(currentMonth))}</h2>
-                    <p className="text-sm text-gray-500">Visao mensal dos eventos filtrados na agenda.</p>
+                    <p className="text-sm text-gray-500">Visão mensal dos eventos filtrados na agenda.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => handleMonthShift(-1)}>
@@ -833,7 +833,7 @@ const ManageEvents = () => {
                             </span>
                           </div>
                         </div>
-                        <p className="mt-3 text-sm text-gray-600">{event.resourceName || event.locationText || 'Sem espaco vinculado'}</p>
+                        <p className="mt-3 text-sm text-gray-600">{event.resourceName || event.locationText || 'Sem espaço vinculado'}</p>
                       </button>
                     ))
                   )}
@@ -846,7 +846,7 @@ const ManageEvents = () => {
             <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
               <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Ocupacao semanal de espacos</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">Ocupação semanal de espaços</h2>
                   <p className="text-sm text-gray-500">{weekRangeLabel}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -867,7 +867,7 @@ const ManageEvents = () => {
                   <thead>
                     <tr>
                       <th className="sticky left-0 z-10 bg-white px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Espaco
+                        Espaço
                       </th>
                       {weekDays.map((day) => (
                         <th
@@ -947,7 +947,7 @@ const ManageEvents = () => {
           <form onSubmit={handleSaveEvent} className="space-y-6">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
-                <Label htmlFor="event-title">Titulo</Label>
+                <Label htmlFor="event-title">Título</Label>
                 <Input
                   id="event-title"
                   value={formState.title}
@@ -984,14 +984,14 @@ const ManageEvents = () => {
               </div>
 
               <div>
-                <Label htmlFor="event-resource">Espaco vinculado</Label>
+                <Label htmlFor="event-resource">Espaço vinculado</Label>
                 <select
                   id="event-resource"
                   value={formState.resourceId}
                   onChange={(event) => handleResourceChange(event.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="">Sem espaco</option>
+                  <option value="">Sem espaço</option>
                   {resourceOptions.map((resource) => (
                     <option key={resource.id} value={resource.id}>
                       {resource.name}
@@ -1070,7 +1070,7 @@ const ManageEvents = () => {
               ) : (
                 <>
                   <div>
-                    <Label htmlFor="event-starts-at">Inicio</Label>
+                    <Label htmlFor="event-starts-at">Início</Label>
                     <Input
                       id="event-starts-at"
                       type="datetime-local"
@@ -1109,12 +1109,12 @@ const ManageEvents = () => {
                   ))}
                 </select>
                 <p className="mt-2 text-xs text-gray-500">
-                  Selecione <strong>Comunidade</strong> em <strong>Espaco vinculado</strong> para habilitar este campo.
+                  Selecione <strong>Comunidade</strong> em <strong>Espaço vinculado</strong> para habilitar este campo.
                 </p>
               </div>
 
               <div>
-                <Label htmlFor="event-organizer-name">Responsavel</Label>
+                <Label htmlFor="event-organizer-name">Responsável</Label>
                 <Input
                   id="event-organizer-name"
                   value={formState.organizerName}
@@ -1150,7 +1150,7 @@ const ManageEvents = () => {
               </div>
 
               <div className="md:col-span-2">
-                <Label htmlFor="event-recurrence">Recorrencia</Label>
+                <Label htmlFor="event-recurrence">Recorrência</Label>
                 <select
                   id="event-recurrence"
                   value={formState.recurrenceRule}
@@ -1166,7 +1166,7 @@ const ManageEvents = () => {
               </div>
 
               <div className="md:col-span-2">
-                <Label htmlFor="event-description">Descricao</Label>
+                <Label htmlFor="event-description">Descrição</Label>
                 <Textarea
                   id="event-description"
                   value={formState.description}
@@ -1192,3 +1192,4 @@ const ManageEvents = () => {
 };
 
 export default ManageEvents;
+

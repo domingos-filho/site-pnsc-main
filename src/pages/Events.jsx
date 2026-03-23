@@ -104,7 +104,7 @@ const getVisibilityLabel = (visibility) => {
     case 'internal':
       return 'Interno';
     default:
-      return 'Publico';
+      return 'Público';
   }
 };
 
@@ -153,7 +153,7 @@ const formatEventDate = (event) => {
     })}`;
   }
 
-  return `${start.toLocaleString('pt-BR')} ate ${end.toLocaleString('pt-BR')}`;
+  return `${start.toLocaleString('pt-BR')} até ${end.toLocaleString('pt-BR')}`;
 };
 
 const formatSelectedDayLabel = (dateKey) => {
@@ -211,7 +211,7 @@ const EventCard = ({ event, onClick }) => {
         {event.organizerName ? (
           <div className="flex items-start gap-2">
             <Clock className="h-4 w-4 mt-0.5 text-blue-600" />
-            <span>Responsavel: {event.organizerName}</span>
+            <span>Responsável: {event.organizerName}</span>
           </div>
         ) : null}
       </div>
@@ -308,7 +308,7 @@ const Events = () => {
       setSource('legacy');
       toast({
         title: 'Aviso',
-        description: 'A agenda publica entrou em modo legado por falha na leitura da agenda v2.',
+        description: 'A agenda pública entrou em modo legado por falha na leitura da agenda v2.',
       });
       setIsLoading(false);
       return;
@@ -468,7 +468,7 @@ const Events = () => {
   return (
     <>
       <Helmet>
-        <title>Agenda - Paroquia de Nossa Senhora da Conceicao</title>
+        <title>Agenda - Paróquia de Nossa Senhora da Conceição</title>
       </Helmet>
 
       <section className="bg-gradient-to-br from-blue-700 to-blue-900 text-white py-16">
@@ -476,7 +476,7 @@ const Events = () => {
           <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl">
             <h1 className="text-4xl font-bold md:text-5xl">Agenda Paroquial</h1>
             <p className="mt-4 text-lg text-blue-100">
-              Consulte missas, encontros, reunioes e demais compromissos da paroquia de forma simples e pratica.
+              Consulte missas, encontros, reuniões e demais compromissos da paróquia de forma simples e prática.
             </p>
           </motion.div>
         </div>
@@ -486,13 +486,13 @@ const Events = () => {
         <div className="container mx-auto px-4 space-y-8">
           {source === 'legacy' ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              A agenda publica esta exibindo o modo legado temporariamente.
+              A agenda pública está exibindo o modo legado temporariamente.
             </div>
           ) : null}
 
           {source === 'calendar' && user && isMember && internalEventCount > 0 ? (
             <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
-              Voce esta vendo eventos internos porque esta autenticado. Esses compromissos nao aparecem para visitantes.
+              Você está vendo eventos internos porque está autenticado. Esses compromissos não aparecem para visitantes.
             </div>
           ) : null}
 
@@ -506,13 +506,13 @@ const Events = () => {
                     id="agenda-search"
                     value={filters.search}
                     onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                    placeholder="Titulo, descricao, local..."
+                    placeholder="Título, descrição, local..."
                     className="pl-9"
                   />
                 </div>
               </div>
               <div>
-                <Label htmlFor="agenda-month">Mes</Label>
+                <Label htmlFor="agenda-month">Mês</Label>
                 <select
                   id="agenda-month"
                   value={filters.month}
@@ -544,7 +544,7 @@ const Events = () => {
                 </select>
               </div>
               <div>
-                <Label htmlFor="agenda-location">Espaco</Label>
+                <Label htmlFor="agenda-location">Espaço</Label>
                 <select
                   id="agenda-location"
                   value={filters.location}
@@ -577,7 +577,7 @@ const Events = () => {
             <Tabs value={activeView} onValueChange={setActiveView}>
               <TabsList className="w-full justify-start sm:w-auto">
                 <TabsTrigger value="list">Lista</TabsTrigger>
-                <TabsTrigger value="calendar">Calendario</TabsTrigger>
+                <TabsTrigger value="calendar">Calendário</TabsTrigger>
               </TabsList>
 
               <TabsContent value="list" className="space-y-8">
@@ -593,7 +593,7 @@ const Events = () => {
                 ) : null}
 
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Proximos eventos</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Próximos eventos</h2>
                   {upcomingEvents.length === 0 ? (
                     <div className="rounded-2xl bg-white px-6 py-10 text-center text-gray-500 shadow-sm ring-1 ring-gray-100">
                       Nenhum evento encontrado.
@@ -631,7 +631,7 @@ const Events = () => {
                         <h2 className="text-2xl font-bold capitalize text-gray-900">
                           {formatMonthLabel(formatMonthKey(currentMonth))}
                         </h2>
-                        <p className="text-sm text-gray-500">Clique em um dia para ver os eventos desse periodo.</p>
+                        <p className="text-sm text-gray-500">Clique em um dia para ver os eventos desse período.</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => handleMonthShift(-1)}>
@@ -731,7 +731,7 @@ const Events = () => {
           <DialogHeader>
             <DialogTitle>{selectedEvent?.title || 'Detalhes do evento'}</DialogTitle>
             <DialogDescription>
-              {selectedEvent?.summary || 'Confira as informacoes completas deste compromisso da agenda paroquial.'}
+              {selectedEvent?.summary || 'Confira as informações completas deste compromisso da agenda paroquial.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -773,7 +773,7 @@ const Events = () => {
                   <div className="flex items-start gap-3">
                     <CalendarIcon className="mt-0.5 h-4 w-4 text-blue-600" />
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">Data e horario</p>
+                      <p className="text-sm font-semibold text-gray-900">Data e horário</p>
                       <p className="mt-1 text-sm text-gray-600">{formatEventDate(selectedEvent)}</p>
                     </div>
                   </div>
@@ -794,20 +794,20 @@ const Events = () => {
 
               {selectedEvent.visibility === 'internal' ? (
                 <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
-                  Este evento interno fica visivel apenas para usuarios autenticados com permissao de membro ou superior.
+                  Este evento interno fica visível apenas para usuários autenticados com permissão de membro ou superior.
                 </div>
               ) : null}
 
               {selectedEvent.description ? (
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Descricao</h3>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Descrição</h3>
                   <p className="mt-2 text-sm leading-7 text-gray-700">{selectedEvent.description}</p>
                 </div>
               ) : null}
 
               {selectedEvent.organizerName || selectedEvent.organizerPhone || selectedEvent.organizerEmail ? (
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Responsavel</h3>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Responsável</h3>
                   <div className="mt-2 space-y-1 text-sm text-gray-700">
                     {selectedEvent.organizerName ? <p>{selectedEvent.organizerName}</p> : null}
                     {selectedEvent.organizerPhone ? <p>{selectedEvent.organizerPhone}</p> : null}

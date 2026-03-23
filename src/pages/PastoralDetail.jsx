@@ -45,7 +45,7 @@ const formatEventDate = (event) => {
     })}`;
   }
 
-  return `${start.toLocaleString('pt-BR')} ate ${end.toLocaleString('pt-BR')}`;
+  return `${start.toLocaleString('pt-BR')} até ${end.toLocaleString('pt-BR')}`;
 };
 
 const buildAgendaTerms = (pastoral) =>
@@ -125,8 +125,8 @@ const PastoralDetail = () => {
     return (
       <div className="container mx-auto px-4 py-20">
         <div className="mx-auto max-w-2xl rounded-3xl border border-gray-100 bg-white p-10 text-center shadow-sm">
-          <h1 className="text-3xl font-bold text-slate-900">Grupo nao encontrado</h1>
-          <p className="mt-3 text-gray-600">A pastoral ou movimento que voce tentou abrir nao esta disponivel.</p>
+          <h1 className="text-3xl font-bold text-slate-900">Grupo não encontrado</h1>
+          <p className="mt-3 text-gray-600">A pastoral ou movimento que você tentou abrir não está disponível.</p>
           <Link to="/pastorais" className="mt-6 inline-flex">
             <Button>Voltar para pastorais</Button>
           </Link>
@@ -138,10 +138,10 @@ const PastoralDetail = () => {
   return (
     <>
       <Helmet>
-        <title>{pastoral.name} - Paroquia de Nossa Senhora da Conceicao</title>
+        <title>{pastoral.name} - Paróquia de Nossa Senhora da Conceição</title>
         <meta
           name="description"
-          content={pastoral.summary || pastoral.objective || `Conheca ${pastoral.name} e saiba como participar.`}
+          content={pastoral.summary || pastoral.objective || `Conheça ${pastoral.name} e saiba como participar.`}
         />
       </Helmet>
 
@@ -169,7 +169,7 @@ const PastoralDetail = () => {
             </span>
             <h1 className="mt-5 text-4xl font-bold leading-tight md:text-6xl">{pastoral.name}</h1>
             <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-200">
-              {pastoral.summary || pastoral.objective || 'Conheca este grupo da paroquia e descubra como participar.'}
+              {pastoral.summary || pastoral.objective || 'Conheça este grupo da paróquia e descubra como participar.'}
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -204,7 +204,7 @@ const PastoralDetail = () => {
                     <h3 className="font-semibold">Objetivo</h3>
                   </div>
                   <p className="mt-3 text-sm leading-7 text-slate-700">
-                    {pastoral.objective || pastoral.summary || 'Objetivo ainda nao informado.'}
+                    {pastoral.objective || pastoral.summary || 'Objetivo ainda não informado.'}
                   </p>
                 </div>
 
@@ -214,14 +214,14 @@ const PastoralDetail = () => {
                     <h3 className="font-semibold">Como participar</h3>
                   </div>
                   <p className="mt-3 text-sm leading-7 text-slate-700">
-                    {pastoral.howToParticipate || 'Entre em contato com a paroquia para saber como ingressar.'}
+                    {pastoral.howToParticipate || 'Entre em contato com a paróquia para saber como ingressar.'}
                   </p>
                 </div>
               </div>
 
               {pastoral.audience ? (
                 <div className="mt-6 rounded-2xl border border-amber-100 bg-amber-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Para quem e</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Para quem é</p>
                   <p className="mt-2 text-sm leading-7 text-slate-700">{pastoral.audience}</p>
                 </div>
               ) : null}
@@ -230,9 +230,9 @@ const PastoralDetail = () => {
             <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Proximos eventos relacionados</h2>
+                  <h2 className="text-2xl font-bold text-slate-900">Próximos eventos relacionados</h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Encontros, celebracoes ou atividades que combinam com este grupo.
+                    Encontros, celebrações ou atividades que combinam com este grupo.
                   </p>
                 </div>
                 <Link to={agendaHref}>
@@ -277,16 +277,16 @@ const PastoralDetail = () => {
 
           <aside className="space-y-6">
             <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100 xl:sticky xl:top-24">
-              <h2 className="text-xl font-bold text-slate-900">Informacoes rapidas</h2>
+              <h2 className="text-xl font-bold text-slate-900">Informações rápidas</h2>
 
               <div className="mt-6 space-y-5 text-sm text-slate-700">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Responsavel</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Responsável</p>
                   <p className="mt-1 font-medium text-slate-900">{pastoral.contactName || pastoral.responsible || 'A definir'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Encontros</p>
-                  <p className="mt-1">{pastoral.meeting || 'Conforme calendario'}</p>
+                  <p className="mt-1">{pastoral.meeting || 'Conforme calendário'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Local</p>

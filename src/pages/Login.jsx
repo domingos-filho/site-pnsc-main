@@ -33,7 +33,7 @@ const Login = () => {
     } else {
       toast({
         title: 'Erro no login',
-        description: result.error || 'Nao foi possivel entrar.',
+        description: result.error || 'Não foi possível entrar.',
         variant: 'destructive',
       });
     }
@@ -110,4 +110,3 @@ const Login = () => {
 };
 
 export default Login;
-

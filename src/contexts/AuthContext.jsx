@@ -28,11 +28,11 @@ export const useAuth = () => {
 };
 
 const getFallbackName = (authUser) => {
-  if (!authUser) return 'Usuario';
+  if (!authUser) return 'Usuário';
   const metaName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
   if (metaName) return metaName;
   if (authUser.email) return authUser.email.split('@')[0];
-  return 'Usuario';
+  return 'Usuário';
 };
 
 const mapUser = (authUser, profile) => {
@@ -161,7 +161,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     if (!isSupabaseReady) {
-      return { success: false, error: 'Supabase nao configurado.' };
+      return { success: false, error: 'Supabase não configurado.' };
     }
 
     let data;
@@ -173,7 +173,7 @@ export const AuthProvider = ({ children }) => {
           password,
         }),
         REQUEST_TIMEOUT_MS,
-        'Tempo limite ao autenticar. Verifique sua conexao e o Supabase.'
+        'Tempo limite ao autenticar. Verifique sua conexão e o Supabase.'
       );
       data = response.data;
       error = response.error;
@@ -193,8 +193,8 @@ export const AuthProvider = ({ children }) => {
         return {
           success: false,
           error: profileError
-            ? 'Nao foi possivel validar o perfil. Tente novamente.'
-            : 'Usuario nao autorizado. Contate a PASCOM.',
+            ? 'Não foi possível validar o perfil. Tente novamente.'
+            : 'Usuário não autorizado. Contate a PASCOM.',
         };
       }
       setUser(mapUser(sessionUser, profile));

@@ -215,12 +215,12 @@ const ManageGallery = () => {
     };
 
     if (!albumData.title) {
-      toast({ title: 'Erro', description: 'Informe o nome do album.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Informe o nome do álbum.', variant: 'destructive' });
       return;
     }
 
     if (!albumData.year) {
-      toast({ title: 'Erro', description: "O campo 'Ano' e obrigatorio.", variant: 'destructive' });
+      toast({ title: 'Erro', description: "O campo 'Ano' é obrigatório.", variant: 'destructive' });
       return;
     }
 
@@ -229,14 +229,14 @@ const ManageGallery = () => {
         const updatedAlbums = albums.map((album) =>
           album.id === currentAlbum.id ? { ...album, ...albumData } : album
         );
-        await persistLegacyGallery(updatedAlbums, 'Album atualizado.');
+        await persistLegacyGallery(updatedAlbums, 'Álbum atualizado.');
       } else {
         const newAlbum = {
           id: `album-${Date.now()}`,
           ...albumData,
           images: [],
         };
-        await persistLegacyGallery([...albums, newAlbum], 'Album criado.');
+        await persistLegacyGallery([...albums, newAlbum], 'Álbum criado.');
       }
 
       closeAlbumDialog();
@@ -256,12 +256,12 @@ const ManageGallery = () => {
       closeAlbumDialog();
       toast({
         title: 'Sucesso!',
-        description: `Album ${currentAlbum ? 'atualizado' : 'criado'}.`,
+        description: `Álbum ${currentAlbum ? 'atualizado' : 'criado'}.`,
       });
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatErrorMessage(error, 'Falha ao salvar album.'),
+        description: formatErrorMessage(error, 'Falha ao salvar álbum.'),
         variant: 'destructive',
       });
     } finally {
@@ -282,12 +282,12 @@ const ManageGallery = () => {
         try {
           await deleteStoragePaths(storagePaths);
         } catch (error) {
-          toast({ title: 'Aviso', description: 'Nao foi possivel remover arquivos do storage.' });
+          toast({ title: 'Aviso', description: 'Não foi possível remover arquivos do storage.' });
         }
       }
 
       const updatedAlbums = albums.filter((album) => album.id !== albumId);
-      await persistLegacyGallery(updatedAlbums, 'Album e fotos removidos.');
+      await persistLegacyGallery(updatedAlbums, 'Álbum e fotos removidos.');
       return;
     }
 
@@ -299,18 +299,18 @@ const ManageGallery = () => {
       try {
         await deleteStoragePaths(storagePaths);
       } catch (error) {
-        toast({ title: 'Aviso', description: 'Nao foi possivel remover arquivos do storage.' });
+        toast({ title: 'Aviso', description: 'Não foi possível remover arquivos do storage.' });
       }
     }
 
     try {
       await deleteGalleryCollection(albumId);
       await loadAlbums();
-      toast({ title: 'Sucesso!', description: 'Album e fotos removidos.' });
+      toast({ title: 'Sucesso!', description: 'Álbum e fotos removidos.' });
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatErrorMessage(error, 'Falha ao excluir album.'),
+        description: formatErrorMessage(error, 'Falha ao excluir álbum.'),
         variant: 'destructive',
       });
     }
@@ -320,7 +320,7 @@ const ManageGallery = () => {
     if (!currentAlbum || files.length === 0) return;
 
     if (!isSupabaseReady) {
-      toast({ title: 'Erro', description: 'Supabase nao configurado para upload.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Supabase não configurado para upload.', variant: 'destructive' });
       return;
     }
 
@@ -379,7 +379,7 @@ const ManageGallery = () => {
 
         const saveResult = await persistLegacyGallery(
           updatedGallery,
-          failedFiles.length === 0 ? `${newImages.length} fotos adicionadas ao album.` : ''
+          failedFiles.length === 0 ? `${newImages.length} fotos adicionadas ao álbum.` : ''
         );
 
         if (failedFiles.length > 0) {
@@ -480,7 +480,7 @@ const ManageGallery = () => {
         closePhotosDialog();
         toast({
           title: 'Sucesso!',
-          description: `${uploadedFiles.length} foto(s) adicionadas ao album.`,
+          description: `${uploadedFiles.length} foto(s) adicionadas ao álbum.`,
         });
       }
     } catch (error) {
@@ -506,7 +506,7 @@ const ManageGallery = () => {
             uniqueStoragePaths([photoToDelete.path, photoToDelete.thumbPath, photoToDelete.mediumPath])
           );
         } catch (error) {
-          toast({ title: 'Aviso', description: 'Nao foi possivel remover o arquivo do storage.' });
+          toast({ title: 'Aviso', description: 'Não foi possível remover o arquivo do storage.' });
         }
       }
 
@@ -543,7 +543,7 @@ const ManageGallery = () => {
       toast({
         title: storageDeleteFailed ? 'Aviso' : 'Sucesso!',
         description: storageDeleteFailed
-          ? 'A foto foi removida da galeria, mas nao foi possivel excluir o arquivo do storage.'
+          ? 'A foto foi removida da galeria, mas não foi possível excluir o arquivo do storage.'
           : 'Foto removida.',
       });
     } catch (error) {
@@ -563,18 +563,18 @@ const ManageGallery = () => {
       const updatedGallery = albums.map((item) =>
         item.id === albumId ? { ...item, coverMediaId: photoId } : item
       );
-      await persistLegacyGallery(updatedGallery, 'Capa do album atualizada.');
+      await persistLegacyGallery(updatedGallery, 'Capa do álbum atualizada.');
       return;
     }
 
     try {
       await setGalleryCollectionCover(albumId, photoId);
       await loadAlbums();
-      toast({ title: 'Sucesso!', description: 'Capa do album atualizada.' });
+      toast({ title: 'Sucesso!', description: 'Capa do álbum atualizada.' });
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatErrorMessage(error, 'Falha ao definir capa do album.'),
+        description: formatErrorMessage(error, 'Falha ao definir capa do álbum.'),
         variant: 'destructive',
       });
     }
@@ -620,7 +620,7 @@ const ManageGallery = () => {
   return (
     <>
       <Helmet>
-        <title>Gerenciar Galeria - Paroquia de Nossa Senhora da Conceicao</title>
+        <title>Gerenciar Galeria - Paróquia de Nossa Senhora da Conceição</title>
       </Helmet>
 
       <div className="container mx-auto p-4 md:p-8">
@@ -639,16 +639,16 @@ const ManageGallery = () => {
             <DialogTrigger asChild>
               <Button onClick={() => openAlbumDialog()}>
                 <Plus className="h-4 w-4 mr-2" />
-                Novo Album
+                Novo Álbum
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{currentAlbum ? 'Editar Album' : 'Adicionar Novo Album'}</DialogTitle>
+                <DialogTitle>{currentAlbum ? 'Editar Álbum' : 'Adicionar Novo Álbum'}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSaveAlbum} className="space-y-4">
                 <div>
-                  <Label htmlFor="title">Nome do Album</Label>
+                  <Label htmlFor="title">Nome do Álbum</Label>
                   <Input id="title" name="title" defaultValue={currentAlbum?.title} required />
                 </div>
                 <div>
@@ -682,7 +682,7 @@ const ManageGallery = () => {
 
         {isUsingLegacyFallback && (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            A galeria relacional nao esta sendo usada neste momento. O painel esta exibindo o modo legado.
+            A galeria relacional não está sendo usada neste momento. O painel está exibindo o modo legado.
           </div>
         )}
 
@@ -717,7 +717,7 @@ const ManageGallery = () => {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Isso excluira o album e TODAS as suas fotos. Essa acao nao pode ser desfeita.
+                            Isso excluirá o álbum e TODAS as suas fotos. Essa ação não pode ser desfeita.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -804,7 +804,7 @@ const ManageGallery = () => {
                                   <AlertDialogTitle>Excluir foto?</AlertDialogTitle>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Nao</AlertDialogCancel>
+                                  <AlertDialogCancel>Não</AlertDialogCancel>
                                   <AlertDialogAction onClick={() => handleDeletePhoto(album.id, photo.id)}>
                                     Sim
                                   </AlertDialogAction>
@@ -819,14 +819,14 @@ const ManageGallery = () => {
                 </div>
 
                 {album.images.length === 0 && (
-                  <p className="text-center text-gray-500 py-4">Nenhuma foto neste album. Adicione algumas!</p>
+                  <p className="text-center text-gray-500 py-4">Nenhuma foto neste álbum. Adicione algumas!</p>
                 )}
               </motion.div>
             ))}
 
             {albums.length === 0 && (
               <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
-                Nenhum album cadastrado ainda.
+                Nenhum álbum cadastrado ainda.
               </div>
             )}
           </div>
@@ -844,7 +844,7 @@ const ManageGallery = () => {
         >
           <DialogContent className="max-w-4xl">
             <DialogHeader>
-              <DialogTitle>Adicionar Fotos ao Album: {currentAlbum?.title}</DialogTitle>
+              <DialogTitle>Adicionar Fotos ao Álbum: {currentAlbum?.title}</DialogTitle>
             </DialogHeader>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
@@ -859,7 +859,7 @@ const ManageGallery = () => {
                 ) : (
                   <p>Arraste e solte as imagens aqui, ou clique para selecionar</p>
                 )}
-                <p className="text-xs text-gray-500 mt-2">As imagens serao salvas em versoes thumb e media para web</p>
+                <p className="text-xs text-gray-500 mt-2">As imagens serão salvas em versões thumb e média para web</p>
               </div>
 
               <div className="max-h-96 overflow-y-auto pr-2 space-y-2">
