@@ -28,6 +28,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
+  COMMUNITY_RESOURCE_VALUE,
   createCalendarEvent,
   deleteCalendarEvent,
   loadAdminCalendarData,
@@ -68,8 +69,6 @@ const createEmptyForm = () => ({
   visibility: 'public',
   eventTypeId: '',
   community: '',
-  category: '',
-  locationText: '',
   resourceId: '',
   organizerName: '',
   organizerPhone: '',
@@ -110,6 +109,10 @@ const buildFormFromEvent = (event) => {
   const endDateSource = event.endsAt
     ? new Date(new Date(event.endsAt).getTime() - 1)
     : new Date(event.startsAt);
+  const usesCommunityResource =
+    !event.resourceId &&
+    Boolean(event.community) &&
+    (event.locationText || '') === (event.community || '');
 
   return {
     title: event.title || '',
@@ -123,10 +126,8 @@ const buildFormFromEvent = (event) => {
     status: event.status || 'confirmed',
     visibility: event.visibility || 'public',
     eventTypeId: event.eventTypeId || '',
-    community: event.community || '',
-    category: event.category || '',
-    locationText: event.locationText || '',
-    resourceId: event.resourceId || '',
+    community: usesCommunityResource ? event.community || '' : '',
+    resourceId: usesCommunityResource ? COMMUNITY_RESOURCE_VALUE : event.resourceId || '',
     organizerName: event.organizerName || '',
     organizerPhone: event.organizerPhone || '',
     organizerEmail: event.organizerEmail || '',
@@ -236,6 +237,16 @@ const ManageEvents = () => {
     return Array.from(new Set([...fromSite, ...fromEvents])).sort((left, right) => left.localeCompare(right));
   }, [siteData, events]);
 
+  const resourceOptions = useMemo(
+    () => [
+      { id: COMMUNITY_RESOURCE_VALUE, name: 'Comunidade' },
+      ...resources.map((resource) => ({ id: resource.id, name: resource.name })),
+    ],
+    [resources]
+  );
+
+  const isCommunityResourceSelected = formState.resourceId === COMMUNITY_RESOURCE_VALUE;
+
   const filteredEvents = useMemo(() => {
     const searchTerm = filters.search.trim().toLowerCase();
 
@@ -255,7 +266,6 @@ const ManageEvents = () => {
         event.summary,
         event.description,
         event.community,
-        event.category,
         event.locationText,
         event.resourceName,
         event.eventTypeName,
@@ -291,6 +301,14 @@ const ManageEvents = () => {
 
   const handleFieldChange = (field, value) => {
     setFormState((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleResourceChange = (value) => {
+    setFormState((prev) => ({
+      ...prev,
+      resourceId: value,
+      community: value === COMMUNITY_RESOURCE_VALUE ? prev.community : '',
+    }));
   };
 
   const handleAllDayChange = (checked) => {
@@ -336,6 +354,8 @@ const ManageEvents = () => {
 
       const payload = {
         ...formState,
+        eventTypes,
+        community: isCommunityResourceSelected ? formState.community : '',
         startsAt: startValue,
         endsAt: endValue,
       };
@@ -524,7 +544,7 @@ const ManageEvents = () => {
                       <td className="px-6 py-4 align-top">
                         <div className="font-semibold text-gray-900">{event.title}</div>
                         <div className="text-sm text-gray-500">
-                          {[event.community, event.category].filter(Boolean).join(' / ') || 'Sem classificacao'}
+                          {[event.community, event.eventTypeName].filter(Boolean).join(' / ') || 'Sem classificacao'}
                         </div>
                       </td>
                       <td className="px-6 py-4 align-top text-sm text-gray-600">{formatEventDateLabel(event)}</td>
@@ -644,11 +664,11 @@ const ManageEvents = () => {
                 <select
                   id="event-resource"
                   value={formState.resourceId}
-                  onChange={(event) => handleFieldChange('resourceId', event.target.value)}
+                  onChange={(event) => handleResourceChange(event.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">Sem espaco</option>
-                  {resources.map((resource) => (
+                  {resourceOptions.map((resource) => (
                     <option key={resource.id} value={resource.id}>
                       {resource.name}
                     </option>
@@ -754,7 +774,8 @@ const ManageEvents = () => {
                   id="event-community"
                   value={formState.community}
                   onChange={(event) => handleFieldChange('community', event.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  disabled={!isCommunityResourceSelected}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                 >
                   <option value="">Sem comunidade</option>
                   {communityOptions.map((community) => (
@@ -763,26 +784,9 @@ const ManageEvents = () => {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <Label htmlFor="event-category">Categoria</Label>
-                <Input
-                  id="event-category"
-                  value={formState.category}
-                  onChange={(event) => handleFieldChange('category', event.target.value)}
-                  placeholder="Ex.: Missa, Reuniao, Formacao"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <Label htmlFor="event-location-text">Descricao do local</Label>
-                <Input
-                  id="event-location-text"
-                  value={formState.locationText}
-                  onChange={(event) => handleFieldChange('locationText', event.target.value)}
-                  placeholder="Texto exibido no site. Se vazio, usa o nome do espaco vinculado."
-                />
+                <p className="mt-2 text-xs text-gray-500">
+                  Selecione <strong>Comunidade</strong> em <strong>Espaco vinculado</strong> para habilitar este campo.
+                </p>
               </div>
 
               <div>

@@ -654,3 +654,30 @@ set
   requires_resource = excluded.requires_resource,
   is_active = true,
   updated_at = now();
+
+insert into public.calendar_resources (
+  slug,
+  name,
+  type,
+  booking_mode,
+  requires_approval,
+  is_active,
+  is_publicly_listed,
+  metadata
+)
+values
+  ('jardim-sao-joao-paulo-ii', 'Jardim Sao Joao Paulo II', 'outdoor', 'exclusive', true, true, true, jsonb_build_object('source', 'agenda_v2_schema')),
+  ('area-do-dizimo', 'Area do Dizimo', 'other', 'exclusive', true, true, true, jsonb_build_object('source', 'agenda_v2_schema')),
+  ('espaco-da-musica', 'Espaco da Musica', 'room', 'exclusive', true, true, true, jsonb_build_object('source', 'agenda_v2_schema')),
+  ('sala-dizimo-pascom', 'Sala Dizimo/PASCOM', 'room', 'exclusive', true, true, true, jsonb_build_object('source', 'agenda_v2_schema')),
+  ('sala-do-sacrario', 'Sala do Sacrario', 'room', 'exclusive', true, true, true, jsonb_build_object('source', 'agenda_v2_schema'))
+on conflict (slug) do update
+set
+  name = excluded.name,
+  type = excluded.type,
+  booking_mode = excluded.booking_mode,
+  requires_approval = excluded.requires_approval,
+  is_active = true,
+  is_publicly_listed = excluded.is_publicly_listed,
+  metadata = public.calendar_resources.metadata || excluded.metadata,
+  updated_at = now();

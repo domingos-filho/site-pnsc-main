@@ -7,6 +7,7 @@ const CALENDAR_EVENT_RESOURCES_TABLE = 'calendar_event_resources';
 const REQUEST_TIMEOUT_MS = 15000;
 const DEFAULT_TIMEZONE = 'America/Fortaleza';
 const PUBLIC_STATUSES = ['confirmed', 'completed', 'cancelled'];
+export const COMMUNITY_RESOURCE_VALUE = '__community__';
 
 const withTimeout = (promise, ms, message) => {
   let timeoutId;
@@ -245,6 +246,7 @@ const fetchEventResourceLinks = async () => {
 
 const buildEventPayload = (input, resources) => {
   const resourceMap = buildResourceMap(resources);
+  const eventTypeMap = buildEventTypeMap(input.eventTypes || []);
   const title = normalizeText(input.title);
   const status = normalizeText(input.status) || 'confirmed';
   const visibility = normalizeText(input.visibility) || 'public';
@@ -263,7 +265,12 @@ const buildEventPayload = (input, resources) => {
     throw new Error('O horario de termino precisa ser maior que o de inicio.');
   }
 
-  const resource = input.resourceId ? resourceMap.get(String(input.resourceId)) : null;
+  const isCommunityResource = input.resourceId === COMMUNITY_RESOURCE_VALUE;
+  const resource = !isCommunityResource && input.resourceId
+    ? resourceMap.get(String(input.resourceId))
+    : null;
+  const eventType = input.eventTypeId ? eventTypeMap.get(String(input.eventTypeId)) : null;
+  const community = isCommunityResource ? normalizeOptionalText(input.community) : null;
   const expectedAttendance = input.expectedAttendance ? Number(input.expectedAttendance) : null;
 
   return {
@@ -277,9 +284,9 @@ const buildEventPayload = (input, resources) => {
     status,
     visibility,
     event_type_id: normalizeOptionalText(input.eventTypeId),
-    community: normalizeOptionalText(input.community),
-    category: normalizeOptionalText(input.category),
-    location_text: normalizeOptionalText(input.locationText) || resource?.name || null,
+    community,
+    category: eventType?.name || null,
+    location_text: community || resource?.name || null,
     organizer_name: normalizeOptionalText(input.organizerName),
     organizer_phone: normalizeOptionalText(input.organizerPhone),
     organizer_email: normalizeOptionalText(input.organizerEmail),
@@ -474,7 +481,7 @@ export const createCalendarEvent = async (input, resources = []) => {
 
   await syncEventResource({
     eventId: data.id,
-    resourceId: input.resourceId || null,
+    resourceId: input.resourceId === COMMUNITY_RESOURCE_VALUE ? null : input.resourceId || null,
     startsAt: payload.starts_at,
     endsAt: payload.ends_at,
   });
@@ -503,7 +510,7 @@ export const updateCalendarEvent = async (id, input, resources = []) => {
 
   await syncEventResource({
     eventId: id,
-    resourceId: input.resourceId || null,
+    resourceId: input.resourceId === COMMUNITY_RESOURCE_VALUE ? null : input.resourceId || null,
     startsAt: payload.starts_at,
     endsAt: payload.ends_at,
   });
