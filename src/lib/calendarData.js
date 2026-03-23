@@ -6,7 +6,7 @@ const CALENDAR_RESOURCES_TABLE = 'calendar_resources';
 const CALENDAR_EVENT_RESOURCES_TABLE = 'calendar_event_resources';
 const REQUEST_TIMEOUT_MS = 15000;
 const DEFAULT_TIMEZONE = 'America/Fortaleza';
-const PUBLIC_STATUSES = ['confirmed', 'completed', 'cancelled'];
+const VISIBLE_STATUSES = ['confirmed', 'cancelled'];
 export const COMMUNITY_RESOURCE_VALUE = '__community__';
 
 const withTimeout = (promise, ms, message) => {
@@ -85,6 +85,20 @@ const normalizeEventType = (row) => ({
   isActive: Boolean(row.is_active),
 });
 
+const dedupeEventTypes = (items) => {
+  const seen = new Set();
+
+  return (items || []).filter((item) => {
+    const key = String(item.slug || item.name || '').trim().toLowerCase();
+    if (!key || seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+};
+
 const normalizeResource = (row) => ({
   id: row.id,
   slug: row.slug,
@@ -145,8 +159,13 @@ const normalizeCalendarEvent = (row, { eventTypes = [], resources = [], eventRes
     endsAt: row.ends_at,
     timezone: row.timezone || DEFAULT_TIMEZONE,
     isAllDay: Boolean(row.is_all_day),
-    status: row.status || 'draft',
-    visibility: row.visibility || 'public',
+    status:
+      row.status === 'draft'
+        ? 'pending_approval'
+        : row.status === 'completed'
+          ? 'confirmed'
+          : row.status || 'pending_approval',
+    visibility: row.visibility === 'private' ? 'internal' : row.visibility || 'public',
     eventTypeId: row.event_type_id || '',
     eventTypeName: eventType?.name || row.category || '',
     eventTypeColor: eventType?.color || '#1d4ed8',
@@ -187,7 +206,7 @@ const fetchEventTypes = async ({ publicOnly = true } = {}) => {
   );
 
   if (error) throw error;
-  return (data || []).map(normalizeEventType);
+  return dedupeEventTypes((data || []).map(normalizeEventType));
 };
 
 const fetchResources = async ({ publicOnly = true } = {}) => {
@@ -217,7 +236,7 @@ const fetchEvents = async ({ publicOnly = true } = {}) => {
     .order('starts_at', { ascending: true });
 
   if (publicOnly) {
-    query = query.eq('visibility', 'public').in('status', PUBLIC_STATUSES);
+    query = query.in('status', VISIBLE_STATUSES);
   }
 
   const { data, error } = await withTimeout(
@@ -248,7 +267,7 @@ const buildEventPayload = (input, resources) => {
   const resourceMap = buildResourceMap(resources);
   const eventTypeMap = buildEventTypeMap(input.eventTypes || []);
   const title = normalizeText(input.title);
-  const status = normalizeText(input.status) || 'confirmed';
+  const status = normalizeText(input.status) || 'pending_approval';
   const visibility = normalizeText(input.visibility) || 'public';
   const startsAt = new Date(input.startsAt);
   const endsAt = new Date(input.endsAt);
@@ -294,7 +313,7 @@ const buildEventPayload = (input, resources) => {
     recurrence_rule: normalizeOptionalText(input.recurrenceRule),
     booking_origin: 'manual',
     published_at:
-      visibility === 'public' && PUBLIC_STATUSES.includes(status)
+      visibility === 'public' && VISIBLE_STATUSES.includes(status)
         ? new Date().toISOString()
         : null,
   };

@@ -50,7 +50,7 @@ create table if not exists public.calendar_events (
   ends_at timestamptz not null,
   timezone text not null default 'America/Fortaleza',
   is_all_day boolean not null default false,
-  status text not null default 'draft',
+  status text not null default 'pending_approval',
   visibility text not null default 'public',
   event_type_id uuid references public.calendar_event_types(id) on delete set null,
   community text,
@@ -154,98 +154,75 @@ create unique index if not exists calendar_event_resources_event_id_resource_id_
 create index if not exists calendar_booking_requests_status_window_idx
   on public.calendar_booking_requests (status, requested_start, requested_end);
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_event_types_visibility_check'
-  ) then
-    alter table public.calendar_event_types
-      add constraint calendar_event_types_visibility_check
-      check (default_visibility in ('public', 'internal', 'private'));
-  end if;
+update public.calendar_event_types
+set default_visibility = 'internal'
+where default_visibility = 'private';
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_resources_type_check'
-  ) then
-    alter table public.calendar_resources
-      add constraint calendar_resources_type_check
-      check (type in ('church', 'chapel', 'hall', 'room', 'office', 'outdoor', 'other'));
-  end if;
+update public.calendar_events
+set visibility = 'internal'
+where visibility = 'private';
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_resources_booking_mode_check'
-  ) then
-    alter table public.calendar_resources
-      add constraint calendar_resources_booking_mode_check
-      check (booking_mode in ('exclusive', 'shared'));
-  end if;
+update public.calendar_events
+set status = 'pending_approval'
+where status = 'draft';
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_events_status_check'
-  ) then
-    alter table public.calendar_events
-      add constraint calendar_events_status_check
-      check (status in ('draft', 'pending_approval', 'confirmed', 'cancelled', 'completed'));
-  end if;
+update public.calendar_events
+set status = 'confirmed'
+where status = 'completed';
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_events_visibility_check'
-  ) then
-    alter table public.calendar_events
-      add constraint calendar_events_visibility_check
-      check (visibility in ('public', 'internal', 'private'));
-  end if;
+alter table public.calendar_events
+  alter column status set default 'pending_approval';
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_events_booking_origin_check'
-  ) then
-    alter table public.calendar_events
-      add constraint calendar_events_booking_origin_check
-      check (booking_origin in ('manual', 'request', 'import', 'legacy'));
-  end if;
+alter table public.calendar_event_types drop constraint if exists calendar_event_types_visibility_check;
+alter table public.calendar_resources drop constraint if exists calendar_resources_type_check;
+alter table public.calendar_resources drop constraint if exists calendar_resources_booking_mode_check;
+alter table public.calendar_events drop constraint if exists calendar_events_status_check;
+alter table public.calendar_events drop constraint if exists calendar_events_visibility_check;
+alter table public.calendar_events drop constraint if exists calendar_events_booking_origin_check;
+alter table public.calendar_events drop constraint if exists calendar_events_time_check;
+alter table public.calendar_event_resources drop constraint if exists calendar_event_resources_time_check;
+alter table public.calendar_booking_requests drop constraint if exists calendar_booking_requests_status_check;
+alter table public.calendar_booking_requests drop constraint if exists calendar_booking_requests_time_check;
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_events_time_check'
-  ) then
-    alter table public.calendar_events
-      add constraint calendar_events_time_check
-      check (ends_at > starts_at);
-  end if;
+alter table public.calendar_event_types
+  add constraint calendar_event_types_visibility_check
+  check (default_visibility in ('public', 'internal'));
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_event_resources_time_check'
-  ) then
-    alter table public.calendar_event_resources
-      add constraint calendar_event_resources_time_check
-      check (ends_at is null or starts_at is null or ends_at > starts_at);
-  end if;
+alter table public.calendar_resources
+  add constraint calendar_resources_type_check
+  check (type in ('church', 'chapel', 'hall', 'room', 'office', 'outdoor', 'other'));
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_booking_requests_status_check'
-  ) then
-    alter table public.calendar_booking_requests
-      add constraint calendar_booking_requests_status_check
-      check (status in ('pending', 'approved', 'rejected', 'cancelled'));
-  end if;
+alter table public.calendar_resources
+  add constraint calendar_resources_booking_mode_check
+  check (booking_mode in ('exclusive', 'shared'));
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'calendar_booking_requests_time_check'
-  ) then
-    alter table public.calendar_booking_requests
-      add constraint calendar_booking_requests_time_check
-      check (requested_end > requested_start);
-  end if;
-end $$;
+alter table public.calendar_events
+  add constraint calendar_events_status_check
+  check (status in ('pending_approval', 'confirmed', 'cancelled'));
+
+alter table public.calendar_events
+  add constraint calendar_events_visibility_check
+  check (visibility in ('public', 'internal'));
+
+alter table public.calendar_events
+  add constraint calendar_events_booking_origin_check
+  check (booking_origin in ('manual', 'request', 'import', 'legacy'));
+
+alter table public.calendar_events
+  add constraint calendar_events_time_check
+  check (ends_at > starts_at);
+
+alter table public.calendar_event_resources
+  add constraint calendar_event_resources_time_check
+  check (ends_at is null or starts_at is null or ends_at > starts_at);
+
+alter table public.calendar_booking_requests
+  add constraint calendar_booking_requests_status_check
+  check (status in ('pending', 'approved', 'rejected', 'cancelled'));
+
+alter table public.calendar_booking_requests
+  add constraint calendar_booking_requests_time_check
+  check (requested_end > requested_start);
 
 create or replace function public.calendar_is_manager()
 returns boolean
@@ -259,6 +236,21 @@ as $$
     from public.profiles
     where id = auth.uid()
       and role in ('admin', 'secretary')
+  );
+$$;
+
+create or replace function public.calendar_is_member()
+returns boolean
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role in ('member', 'secretary', 'admin')
   );
 $$;
 
@@ -571,6 +563,7 @@ drop policy if exists "Managers manage calendar event types" on public.calendar_
 drop policy if exists "Public read calendar resources" on public.calendar_resources;
 drop policy if exists "Managers manage calendar resources" on public.calendar_resources;
 drop policy if exists "Public read calendar events" on public.calendar_events;
+drop policy if exists "Members read internal calendar events" on public.calendar_events;
 drop policy if exists "Managers manage calendar events" on public.calendar_events;
 drop policy if exists "Managers read calendar event resources" on public.calendar_event_resources;
 drop policy if exists "Managers manage calendar event resources" on public.calendar_event_resources;
@@ -599,7 +592,15 @@ create policy "Public read calendar events"
   on public.calendar_events for select
   using (
     visibility = 'public'
-    and status in ('confirmed', 'completed', 'cancelled')
+    and status in ('confirmed', 'cancelled')
+  );
+
+create policy "Members read internal calendar events"
+  on public.calendar_events for select
+  using (
+    visibility = 'internal'
+    and status in ('confirmed', 'cancelled')
+    and public.calendar_is_member()
   );
 
 create policy "Managers manage calendar events"
@@ -642,7 +643,7 @@ values
   ('pastoral', 'Pastoral', 'Atividades organizadas pelas pastorais e ministerios.', '#7c3aed', 90, 'public', true, true),
   ('festa', 'Festa', 'Eventos festivos e grandes celebracoes da paroquia.', '#ea580c', 180, 'public', true, true),
   ('ensaio', 'Ensaio', 'Ensaios de musica, liturgia e preparacoes.', '#ca8a04', 90, 'internal', false, true),
-  ('reserva-de-espaco', 'Reserva de espaco', 'Uso administrativo ou interno de ambientes da paroquia.', '#64748b', 60, 'private', true, true)
+  ('reserva-de-espaco', 'Reserva de espaco', 'Uso administrativo ou interno de ambientes da paroquia.', '#64748b', 60, 'internal', true, true)
 on conflict (slug) do update
 set
   name = excluded.name,

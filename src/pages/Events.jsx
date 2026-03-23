@@ -74,12 +74,6 @@ const getStatusLabel = (status) => {
   switch (status) {
     case 'cancelled':
       return 'Cancelado';
-    case 'completed':
-      return 'Concluido';
-    case 'pending_approval':
-      return 'Pendente';
-    case 'draft':
-      return 'Rascunho';
     default:
       return 'Confirmado';
   }
@@ -89,8 +83,6 @@ const getStatusClasses = (status) => {
   switch (status) {
     case 'cancelled':
       return 'bg-red-100 text-red-700';
-    case 'completed':
-      return 'bg-slate-100 text-slate-700';
     default:
       return 'bg-blue-100 text-blue-700';
   }

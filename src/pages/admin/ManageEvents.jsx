@@ -36,17 +36,14 @@ import {
 } from '@/lib/calendarData';
 
 const STATUS_OPTIONS = [
-  { value: 'draft', label: 'Rascunho' },
   { value: 'pending_approval', label: 'Pendente' },
   { value: 'confirmed', label: 'Confirmado' },
   { value: 'cancelled', label: 'Cancelado' },
-  { value: 'completed', label: 'Concluido' },
 ];
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Publico' },
   { value: 'internal', label: 'Interno' },
-  { value: 'private', label: 'Privado' },
 ];
 
 const RECURRENCE_OPTIONS = [
@@ -65,7 +62,7 @@ const createEmptyForm = () => ({
   endsAt: '',
   startDate: '',
   endDate: '',
-  status: 'confirmed',
+  status: 'pending_approval',
   visibility: 'public',
   eventTypeId: '',
   community: '',
@@ -123,8 +120,13 @@ const buildFormFromEvent = (event) => {
     endsAt: event.isAllDay ? '' : formatDateTimeLocal(event.endsAt),
     startDate: event.isAllDay ? formatDateInput(event.startsAt) : '',
     endDate: event.isAllDay ? formatDateInput(endDateSource) : '',
-    status: event.status || 'confirmed',
-    visibility: event.visibility || 'public',
+    status:
+      event.status === 'draft'
+        ? 'pending_approval'
+        : event.status === 'completed'
+          ? 'confirmed'
+          : event.status || 'pending_approval',
+    visibility: event.visibility === 'private' ? 'internal' : event.visibility || 'public',
     eventTypeId: event.eventTypeId || '',
     community: usesCommunityResource ? event.community || '' : '',
     resourceId: usesCommunityResource ? COMMUNITY_RESOURCE_VALUE : event.resourceId || '',
@@ -169,8 +171,6 @@ const getStatusClasses = (status) => {
       return 'bg-amber-100 text-amber-800';
     case 'cancelled':
       return 'bg-red-100 text-red-800';
-    case 'completed':
-      return 'bg-slate-100 text-slate-700';
     default:
       return 'bg-gray-100 text-gray-700';
   }
@@ -182,8 +182,6 @@ const getVisibilityClasses = (visibility) => {
       return 'bg-blue-100 text-blue-700';
     case 'internal':
       return 'bg-violet-100 text-violet-700';
-    case 'private':
-      return 'bg-gray-200 text-gray-700';
     default:
       return 'bg-gray-100 text-gray-700';
   }
@@ -282,7 +280,7 @@ const ManageEvents = () => {
       total: events.length,
       pending: events.filter((event) => event.status === 'pending_approval').length,
       publicCount: events.filter((event) => event.visibility === 'public').length,
-      privateCount: events.filter((event) => event.visibility === 'private').length,
+      internalCount: events.filter((event) => event.visibility === 'internal').length,
     }),
     [events]
   );
@@ -457,8 +455,8 @@ const ManageEvents = () => {
           <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Privados</p>
-                <p className="text-3xl font-bold text-slate-700">{stats.privateCount}</p>
+                <p className="text-sm text-gray-500">Internos</p>
+                <p className="text-3xl font-bold text-slate-700">{stats.internalCount}</p>
               </div>
               <MapPin className="h-8 w-8 text-slate-500" />
             </div>
