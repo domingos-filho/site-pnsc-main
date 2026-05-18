@@ -204,6 +204,13 @@ Para evoluir a agenda para eventos operacionais, reservas de espacos e aprovacoe
 - `supabase/agenda_v2_schema.sql`
 - `supabase/agenda_v2_backfill.sql`
 
+## Operações v1
+Para preparar os módulos internos de mini mercado, inventário e mesas, veja:
+
+- `docs/operacoes-v1.md`
+- `supabase/operacoes_v1_foundation_schema.sql`
+- `supabase/operacoes_v1_foundation_backfill.sql`
+
 ## Publicar no GitHub
 ```bash
 git init
