@@ -211,6 +211,12 @@ Para preparar os módulos internos de mini mercado, inventário e mesas, veja:
 - `supabase/operacoes_v1_foundation_schema.sql`
 - `supabase/operacoes_v1_foundation_backfill.sql`
 
+## Inventario v1
+Para iniciar o primeiro modulo operacional com itens, movimentacoes e fotos/anexos em bucket privado, veja:
+
+- `docs/inventory-v1.md`
+- `supabase/inventory_v1_schema.sql`
+
 ## Conteudo institucional por unidade
 Para migrar comunidades, pastorais, movimentos e servicos para um modelo relacional com permissao por vinculo institucional, veja:
 

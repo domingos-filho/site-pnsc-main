@@ -246,13 +246,26 @@ Controlar itens, patrimônio e consumo por pastoral, movimento, comunidade e ser
 - `inventories`
 - `inventory_items`
 - `inventory_movements`
-- `inventory_item_files`
-- `inventory_audits`
+- `inventory_item_attachments`
+
+Arquivo base desta etapa:
+
+- `supabase/inventory_v1_schema.sql`
+
+Documentacao dedicada:
+
+- `docs/inventory-v1.md`
 
 ### Regra principal
 - o usuário só acessa inventários das unidades às quais está vinculado
 - o módulo só aparece se estiver habilitado para a unidade
 - `admin` ignora essa limitação
+
+### Regra para fotos e anexos
+- fotos nao devem ficar em coluna binaria da tabela
+- arquivos ficam em bucket privado do Supabase Storage
+- a tabela salva apenas metadados e o `bucket_path`
+- o path do arquivo deve comecar com o `inventory_item_id`
 
 ### Rotas sugeridas
 - `/dashboard/inventory`

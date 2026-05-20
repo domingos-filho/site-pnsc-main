@@ -33,6 +33,9 @@ const dialogModes = {
   edit: 'edit',
 };
 
+const inviteEmailEnabled =
+  String(import.meta.env.VITE_SUPABASE_INVITE_EMAIL_ENABLED || 'false').toLowerCase() === 'true';
+
 const emptyAccess = {
   can_read: false,
   can_write: false,
@@ -277,7 +280,7 @@ const UserEditorTabs = ({
               className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <option value="temporary_password">Senha provisória</option>
-              <option value="invite">Convite por e-mail</option>
+              {inviteEmailEnabled ? <option value="invite">Convite por e-mail</option> : null}
             </select>
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
               {formState.deliveryMode === 'invite'

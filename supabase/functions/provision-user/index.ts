@@ -187,6 +187,14 @@ const generateTemporaryPassword = (length = 18) => {
   return Array.from(random, (value) => alphabet[value % alphabet.length]).join('');
 };
 
+const formatAuthProvisioningError = (message: string, deliveryMode: string) => {
+  if (deliveryMode === 'invite' && /error sending invite email/i.test(message)) {
+    return 'O usuário foi validado, mas o Supabase Auth não conseguiu enviar o convite. Revise o SMTP do serviço auth no self-hosted ou use senha provisória.';
+  }
+
+  return message;
+};
+
 const rollbackUser = async (adminClient: ReturnType<typeof createClient>, userId: string | null) => {
   if (!userId) return;
   await adminClient.auth.admin.deleteUser(userId);
@@ -326,7 +334,10 @@ Deno.serve(async (request) => {
             });
 
       if (authResult.error || !authResult.data.user?.id) {
-        const message = authResult.error?.message || 'Não foi possível criar o usuário no Auth.';
+        const message = formatAuthProvisioningError(
+          authResult.error?.message || 'Não foi possível criar o usuário no Auth.',
+          deliveryMode
+        );
         const status = /already|registered|exists/i.test(message) ? 409 : 400;
         return jsonResponse({ error: message }, { status });
       }
