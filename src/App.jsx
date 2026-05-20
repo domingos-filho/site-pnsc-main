@@ -6,6 +6,12 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { DataProvider } from '@/contexts/DataContext';
 import Layout from '@/components/Layout';
 import PrivateRoute from '@/components/PrivateRoute';
+import {
+  AGENDA_MANAGER_ROLES,
+  GALLERY_MANAGER_ROLES,
+  SITE_SETTINGS_ALLOWED_ROLES,
+  USERS_MANAGER_ROLES,
+} from '@/lib/accessControl';
 
 const Home = lazy(() => import('@/pages/Home'));
 const Communities = lazy(() => import('@/pages/Communities'));
@@ -60,7 +66,7 @@ function App() {
               <Route
                 path="/dashboard/events"
                 element={
-                  <PrivateRoute requiredRole="secretary">
+                  <PrivateRoute requiredRole={AGENDA_MANAGER_ROLES}>
                     <ManageEvents />
                   </PrivateRoute>
                 }
@@ -68,7 +74,7 @@ function App() {
               <Route
                 path="/dashboard/gallery"
                 element={
-                  <PrivateRoute requiredRole="secretary">
+                  <PrivateRoute requiredRole={GALLERY_MANAGER_ROLES}>
                     <ManageGallery />
                   </PrivateRoute>
                 }
@@ -76,7 +82,7 @@ function App() {
               <Route
                 path="/dashboard/users"
                 element={
-                  <PrivateRoute requiredRole="admin">
+                  <PrivateRoute requiredRole={USERS_MANAGER_ROLES}>
                     <ManageUsers />
                   </PrivateRoute>
                 }
@@ -84,7 +90,7 @@ function App() {
               <Route
                 path="/dashboard/settings"
                 element={
-                  <PrivateRoute requiredRole="admin">
+                  <PrivateRoute requiredRole={SITE_SETTINGS_ALLOWED_ROLES}>
                     <SiteSettings />
                   </PrivateRoute>
                 }

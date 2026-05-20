@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, UploadCloud } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +32,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { deleteStoragePaths, isSupabaseReady, uploadImageFile } from '@/lib/supabaseStorage';
 import { getPastoralCategoryLabel, normalizePastoralItem } from '@/lib/pastorals';
+import { getAllowedSiteSettingsTabs } from '@/lib/accessControl';
 import SettingsPastoralsPanel from '@/pages/admin/SettingsPastoralsPanel';
 
 const showSyncWarning = (toast) => {
@@ -1940,6 +1942,25 @@ const SettingsContactAbout = () => {
 // #endregion
 
 const SiteSettings = () => {
+  const { user } = useAuth();
+  const allowedTabs = getAllowedSiteSettingsTabs(user?.role);
+  const defaultTab = allowedTabs.includes('contact') ? 'contact' : allowedTabs[0] || 'team';
+  const visibleTabItems = [
+    { key: 'homepage', label: 'Página Inicial' },
+    { key: 'communities', label: 'Comunidades' },
+    { key: 'pastorals', label: 'Pastorais' },
+    { key: 'team', label: 'Adm. Paroquial' },
+    { key: 'contact', label: 'Contato/Sobre' },
+  ].filter((item) => allowedTabs.includes(item.key));
+  const tabsGridClass =
+    visibleTabItems.length <= 2
+      ? 'grid-cols-1 sm:grid-cols-2'
+      : visibleTabItems.length === 3
+        ? 'grid-cols-1 sm:grid-cols-3'
+        : visibleTabItems.length === 4
+          ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4'
+          : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5';
+
   return (
     <>
       <Helmet>
@@ -1947,31 +1968,41 @@ const SiteSettings = () => {
       </Helmet>
       <div className="container mx-auto p-4 md:p-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-8">Configurações do Site</h1>
-        <Tabs defaultValue="contact" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 mb-6">
-            <TabsTrigger value="homepage">Página Inicial</TabsTrigger>
-            <TabsTrigger value="communities">Comunidades</TabsTrigger>
-            <TabsTrigger value="pastorals">Pastorais</TabsTrigger>
-            <TabsTrigger value="team">Adm. Paroquial</TabsTrigger>
-            <TabsTrigger value="contact">Contato/Sobre</TabsTrigger>
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <TabsList className={`mb-6 grid w-full ${tabsGridClass}`}>
+            {visibleTabItems.map((item) => (
+              <TabsTrigger key={item.key} value={item.key}>
+                {item.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           <div className="p-6 bg-white rounded-lg shadow-md">
-            <TabsContent value="homepage">
-              <SettingsHomePage />
-            </TabsContent>
-            <TabsContent value="communities">
-              <SettingsCommunities />
-            </TabsContent>
-            <TabsContent value="pastorals">
-              <SettingsPastoralsPanel />
-            </TabsContent>
-            <TabsContent value="team">
-              <SettingsTeam />
-            </TabsContent>
-            <TabsContent value="contact">
-              <SettingsContactAbout />
-            </TabsContent>
+            {allowedTabs.includes('homepage') ? (
+              <TabsContent value="homepage">
+                <SettingsHomePage />
+              </TabsContent>
+            ) : null}
+            {allowedTabs.includes('communities') ? (
+              <TabsContent value="communities">
+                <SettingsCommunities />
+              </TabsContent>
+            ) : null}
+            {allowedTabs.includes('pastorals') ? (
+              <TabsContent value="pastorals">
+                <SettingsPastoralsPanel />
+              </TabsContent>
+            ) : null}
+            {allowedTabs.includes('team') ? (
+              <TabsContent value="team">
+                <SettingsTeam />
+              </TabsContent>
+            ) : null}
+            {allowedTabs.includes('contact') ? (
+              <TabsContent value="contact">
+                <SettingsContactAbout />
+              </TabsContent>
+            ) : null}
           </div>
         </Tabs>
       </div>

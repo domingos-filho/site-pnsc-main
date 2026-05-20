@@ -5,6 +5,14 @@ import { motion } from 'framer-motion';
 import { Calendar, Image, Settings, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import {
+  AGENDA_MANAGER_ROLES,
+  GALLERY_MANAGER_ROLES,
+  getRoleLabel,
+  hasRoleAccess,
+  SITE_SETTINGS_ALLOWED_ROLES,
+  USERS_MANAGER_ROLES,
+} from '@/lib/accessControl';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -24,7 +32,7 @@ const Dashboard = () => {
       path: '/dashboard/events',
       icon: Calendar,
       description: 'Cadastre, edite e acompanhe eventos e ocupação dos espaços.',
-      roles: ['secretary', 'admin'],
+      roles: AGENDA_MANAGER_ROLES,
       color: 'text-blue-600',
     },
     {
@@ -32,28 +40,31 @@ const Dashboard = () => {
       path: '/dashboard/gallery',
       icon: Image,
       description: 'Adicione, edite ou remova fotos dos eventos.',
-      roles: ['secretary', 'admin'],
+      roles: GALLERY_MANAGER_ROLES,
       color: 'text-purple-600',
     },
     {
       name: 'Gerenciar Usuários',
       path: '/dashboard/users',
       icon: Users,
-      description: 'Administre membros, vínculos institucionais e permissões de acesso.',
-      roles: ['admin'],
+      description: 'Administre perfis, vínculos institucionais e permissões de acesso.',
+      roles: USERS_MANAGER_ROLES,
       color: 'text-pink-600',
     },
     {
       name: 'Configurações do Site',
       path: '/dashboard/settings',
       icon: Settings,
-      description: 'Edite informações do site e conteúdos das páginas.',
-      roles: ['admin'],
+      description:
+        user.role === 'secretary' || user.role === 'treasurer'
+          ? 'Edite apenas as abas Adm. Paroquial e Contato/Sobre.'
+          : 'Edite informações do site e conteúdos das páginas.',
+      roles: SITE_SETTINGS_ALLOWED_ROLES,
       color: 'text-indigo-600',
     },
   ];
 
-  const accessibleItems = dashboardItems.filter((item) => item.roles.includes(user.role));
+  const accessibleItems = dashboardItems.filter((item) => hasRoleAccess(user.role, item.roles));
 
   return (
     <>
@@ -70,8 +81,7 @@ const Dashboard = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
             <h1 className="mb-4 text-4xl font-bold md:text-5xl">Dashboard</h1>
             <p className="text-xl text-blue-100">
-              Bem-vindo, {user.name}! (
-              {user.role === 'admin' ? 'Administrador' : user.role === 'secretary' ? 'Secretário' : 'Membro'})
+              Bem-vindo, {user.name}! ({getRoleLabel(user.role)})
             </p>
           </motion.div>
         </div>

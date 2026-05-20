@@ -1,14 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-
-const ROLE_LEVELS = {
-  member: 1,
-  secretary: 2,
-  admin: 3,
-};
-
-const resolveRoleLevel = (role) => ROLE_LEVELS[role] || 0;
+import { hasRoleAccess } from '@/lib/accessControl';
 
 const PrivateRoute = ({ children, requiredRole }) => {
   const { user, loading } = useAuth();
@@ -16,7 +9,7 @@ const PrivateRoute = ({ children, requiredRole }) => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex h-screen items-center justify-center">
         <p>Carregando...</p>
       </div>
     );
@@ -27,11 +20,9 @@ const PrivateRoute = ({ children, requiredRole }) => {
   }
 
   if (requiredRole) {
-    const userLevel = resolveRoleLevel(user.role);
     const requiredRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    const hasRequiredRole = requiredRoles.some((role) => userLevel >= resolveRoleLevel(role));
 
-    if (!hasRequiredRole) {
+    if (!hasRoleAccess(user.role, requiredRoles)) {
       return <Navigate to="/dashboard" replace />;
     }
   }

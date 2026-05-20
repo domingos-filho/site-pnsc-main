@@ -9,25 +9,14 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import { ROLE_BADGE_CLASS, ROLE_LABELS } from '@/lib/accessControl';
 import { supabase, isSupabaseReady } from '@/lib/supabaseClient';
-
-const roleLabels = {
-  admin: 'Administrador',
-  secretary: 'Secretário',
-  member: 'Membro',
-};
-
-const roleBadgeClass = {
-  admin: 'bg-red-100 text-red-800',
-  secretary: 'bg-amber-100 text-amber-800',
-  member: 'bg-blue-100 text-blue-800',
-};
 
 const orgUnitTypeLabels = {
   community: 'Comunidades',
@@ -225,7 +214,12 @@ const ManageUsers = () => {
       profileModuleAccessResponse,
     ] = await Promise.all([
       supabase.from('profiles').select('id, name, role, email').order('name'),
-      supabase.from('org_units').select('id, type, name, slug, is_active').eq('is_active', true).order('type').order('name'),
+      supabase
+        .from('org_units')
+        .select('id, type, name, slug, is_active')
+        .eq('is_active', true)
+        .order('type')
+        .order('name'),
       supabase.from('app_modules').select('key, name, description, is_active').eq('is_active', true).order('name'),
       supabase
         .from('profile_org_units')
@@ -438,9 +432,7 @@ const ManageUsers = () => {
     }
 
     if (normalizedOrgLinks.length > 0) {
-      const { error: insertOrgLinksError } = await supabase
-        .from('profile_org_units')
-        .insert(normalizedOrgLinks);
+      const { error: insertOrgLinksError } = await supabase.from('profile_org_units').insert(normalizedOrgLinks);
 
       if (insertOrgLinksError) {
         toast({
@@ -580,10 +572,10 @@ const ManageUsers = () => {
                         <td className="px-6 py-4">
                           <span
                             className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                              roleBadgeClass[profile.role] || roleBadgeClass.member
+                              ROLE_BADGE_CLASS[profile.role] || ROLE_BADGE_CLASS.member
                             }`}
                           >
-                            {roleLabels[profile.role] || 'Membro'}
+                            {ROLE_LABELS[profile.role] || ROLE_LABELS.member}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -688,8 +680,10 @@ const ManageUsers = () => {
                         required
                         className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background py-2 pl-10 pr-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                       >
-                        <option value="member">Membro</option>
+                        <option value="member">Coordenador</option>
                         <option value="secretary">Secretário</option>
+                        <option value="treasurer">Tesoureira</option>
+                        <option value="articulator">Articulador</option>
                         <option value="admin">Administrador</option>
                       </select>
                     </div>

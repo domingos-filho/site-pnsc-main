@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseReady } from '@/lib/supabaseClient';
+import { ALL_AUTHENTICATED_ROLES } from '@/lib/accessControl';
 
 const AuthContext = createContext();
 
 const ROLE_LEVELS = {
   member: 1,
   secretary: 2,
+  treasurer: 2,
+  articulator: 2,
   admin: 3,
 };
 
@@ -310,7 +313,7 @@ export const AuthProvider = ({ children }) => {
     isAdmin: user?.role === 'admin',
     isSecretary: user?.role === 'secretary',
     isManager: user?.role === 'admin' || user?.role === 'secretary',
-    isMember: ['member', 'secretary', 'admin'].includes(user?.role),
+    isMember: ALL_AUTHENTICATED_ROLES.includes(user?.role),
     roleLevel,
   };
 
