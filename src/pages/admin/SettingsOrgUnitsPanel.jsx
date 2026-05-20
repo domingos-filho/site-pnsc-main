@@ -107,6 +107,7 @@ const SettingsOrgUnitsPanel = () => {
         .map((orgUnit) => orgUnit.id),
     [user?.orgUnits]
   );
+  const editableOrgUnitIds = useMemo(() => new Set(linkedOrgUnitIds), [linkedOrgUnitIds]);
 
   const cleanupCommunityFiles = useCallback((files) => {
     (files || []).forEach((file) => {
@@ -136,19 +137,12 @@ const SettingsOrgUnitsPanel = () => {
       return;
     }
 
-    if (isCoordinator && linkedOrgUnitIds.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const orgUnitIds = isCoordinator ? linkedOrgUnitIds : null;
       const [orgUnits, contentRows] = await Promise.all([
-        fetchOrgUnits({ orgUnitIds }),
-        fetchOrgUnitSiteContentRows({ orgUnitIds }),
+        fetchOrgUnits(),
+        fetchOrgUnitSiteContentRows(),
       ]);
 
       const contentByUnitId = new Map(contentRows.map((row) => [row.orgUnitId, row]));
@@ -183,7 +177,7 @@ const SettingsOrgUnitsPanel = () => {
     } finally {
       setLoading(false);
     }
-  }, [isCoordinator, linkedOrgUnitIds, toast]);
+  }, [toast]);
 
   useEffect(() => {
     void loadRecords();
@@ -240,6 +234,11 @@ const SettingsOrgUnitsPanel = () => {
       { community: [], pastoral: [], movement: [], service: [] }
     );
   }, [visibleRecords]);
+
+  const canEditRecord = useCallback(
+    (record) => !isCoordinator || editableOrgUnitIds.has(record.orgUnit.id),
+    [editableOrgUnitIds, isCoordinator]
+  );
 
   const openDialog = (record) => {
     cleanupCommunityFiles(communityFiles);
@@ -382,7 +381,7 @@ const SettingsOrgUnitsPanel = () => {
             <h3 className="text-lg font-semibold">Unidades institucionais</h3>
             <p className="text-sm text-gray-500">
               {isCoordinator
-                ? 'Você pode editar apenas as unidades vinculadas ao seu perfil.'
+                ? 'Você pode visualizar todas as unidades e editar apenas as que estiverem vinculadas ao seu perfil.'
                 : 'Gerencie comunidades, pastorais, movimentos e serviços em uma base relacional única.'}
             </p>
           </div>
@@ -473,9 +472,18 @@ const SettingsOrgUnitsPanel = () => {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <Button type="button" variant="outline" onClick={() => openDialog(record)}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => openDialog(record)}
+                              disabled={!canEditRecord(record)}
+                            >
                               <Edit className="mr-2 h-4 w-4" />
-                              {record.content ? 'Editar' : 'Configurar'}
+                              {canEditRecord(record)
+                                ? record.content
+                                  ? 'Editar'
+                                  : 'Configurar'
+                                : 'Sem permissão'}
                             </Button>
                           </div>
                         </div>

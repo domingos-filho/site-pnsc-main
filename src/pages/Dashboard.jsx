@@ -17,11 +17,6 @@ import {
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const hasLinkedEditableUnits =
-    user?.role !== 'member' ||
-    (user?.orgUnits || []).some((link) =>
-      ['community', 'pastoral', 'movement', 'service'].includes(link.orgUnit?.type)
-    );
 
   useEffect(() => {
     if (!user) {
@@ -64,17 +59,14 @@ const Dashboard = () => {
         user.role === 'secretary' || user.role === 'treasurer'
           ? 'Edite apenas as abas Adm. Paroquial e Contato/Sobre.'
           : user.role === 'member'
-            ? 'Edite apenas comunidades, pastorais, movimentos e serviços vinculados ao seu perfil.'
+            ? 'Visualize todas as unidades e edite apenas as que estiverem vinculadas ao seu perfil.'
             : 'Edite informações do site e conteúdos das páginas.',
       roles: SITE_SETTINGS_ALLOWED_ROLES,
       color: 'text-indigo-600',
-      isVisible: hasLinkedEditableUnits,
     },
   ];
 
-  const accessibleItems = dashboardItems.filter(
-    (item) => hasRoleAccess(user.role, item.roles) && item.isVisible !== false
-  );
+  const accessibleItems = dashboardItems.filter((item) => hasRoleAccess(user.role, item.roles));
 
   return (
     <>

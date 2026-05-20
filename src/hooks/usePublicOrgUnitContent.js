@@ -43,13 +43,16 @@ export const usePublicOrgUnitContent = () => {
     const load = async () => {
       try {
         const rows = await fetchOrgUnitSiteContentRows();
-        const normalized = rows.length > 0 ? buildPublicOrgUnitContentFromRows(rows) : fallback;
+        const relational = rows.length > 0 ? buildPublicOrgUnitContentFromRows(rows) : null;
+        const hasRelationalContent =
+          (relational?.communities?.length || 0) > 0 || (relational?.pastoralItems?.length || 0) > 0;
+        const normalized = hasRelationalContent ? relational : fallback;
 
         if (isMounted) {
           setState({
             ...normalized,
             loading: false,
-            source: rows.length > 0 ? 'supabase' : 'fallback',
+            source: hasRelationalContent ? 'supabase' : 'fallback',
             error: null,
           });
         }

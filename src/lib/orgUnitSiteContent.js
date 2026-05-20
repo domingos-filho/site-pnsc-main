@@ -73,6 +73,12 @@ const normalizeOrgUnit = (value) => {
   return Array.isArray(value) ? value[0] || null : value;
 };
 
+const ensureNormalizedOrgUnitSiteContentRow = (row) => {
+  if (!row) return null;
+  if (row.orgUnit && row.orgUnitId) return row;
+  return normalizeOrgUnitSiteContentRow(row);
+};
+
 const sortRows = (rows) =>
   [...rows].sort((left, right) => {
     const typeCompare = (left.orgUnit?.type || '').localeCompare(right.orgUnit?.type || '');
@@ -212,7 +218,9 @@ export const buildPastoralItemFromOrgUnitContent = (row) => {
 };
 
 export const buildPublicOrgUnitContentFromRows = (rows) => {
-  const normalizedRows = sortRows(rows.map(normalizeOrgUnitSiteContentRow).filter(Boolean)).filter((row) => row.isPublic);
+  const normalizedRows = sortRows(rows.map(ensureNormalizedOrgUnitSiteContentRow).filter(Boolean)).filter(
+    (row) => row.isPublic
+  );
 
   const communities = normalizedRows
     .filter((row) => row.orgUnit.type === 'community')
