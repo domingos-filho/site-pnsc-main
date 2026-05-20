@@ -12,7 +12,7 @@ const parseFunctionError = async (error) => {
   if (error instanceof FunctionsHttpError && error.context) {
     try {
       const payload = await error.context.json();
-      return payload?.error || payload?.message || payload?.details || error.message;
+      return payload?.error || payload?.message || payload?.msg || payload?.details || error.message;
     } catch {
       try {
         const text = await error.context.text();

@@ -1,8 +1,22 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 
 const ALLOWED_ROLES = new Set(['member', 'secretary', 'treasurer', 'articulator', 'admin']);
 const DELIVERY_MODES = new Set(['temporary_password', 'invite']);
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+const jsonResponse = (body: unknown, init: ResponseInit = {}) =>
+  new Response(JSON.stringify(body), {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+      ...(init.headers || {}),
+    },
+  });
 
 type OrgLinkInput = {
   orgUnitId?: string;
