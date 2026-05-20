@@ -218,6 +218,34 @@ Para migrar comunidades, pastorais, movimentos e servicos para um modelo relacio
 - `supabase/org_unit_site_content_v1_schema.sql`
 - `supabase/org_unit_site_content_v1_backfill.sql`
 
+## Provisionamento de usuarios pelo painel
+O painel de `Gerenciar Perfis` agora pode criar usuarios no Supabase Auth e gravar:
+
+- `public.profiles`
+- `public.profile_org_units`
+- `public.profile_module_access`
+
+Arquivos envolvidos:
+
+- `src/pages/admin/ManageUsers.jsx`
+- `src/lib/userProvisioning.js`
+- `supabase/functions/provision-user/index.ts`
+
+Passos para self-hosted:
+
+1. Publique a Edge Function `provision-user` no seu ambiente Supabase.
+2. Garanta que o runtime de funcoes tenha acesso a:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SITE_URL` (usado no modo convite por e-mail)
+3. No frontend, mantenha `VITE_SUPABASE_PROVISION_USER_FUNCTION=provision-user` ou ajuste se usar outro nome.
+
+Observacoes:
+
+- `Senha provisoria` e o modo mais compativel com o login atual do site.
+- `Convite por e-mail` depende do SMTP do Supabase e do fluxo de definicao de senha no link enviado.
+
 ## Publicar no GitHub
 ```bash
 git init
