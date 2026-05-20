@@ -20,12 +20,11 @@ export const ALL_AUTHENTICATED_ROLES = [...ROLE_KEYS];
 export const AGENDA_MANAGER_ROLES = ['secretary', 'admin'];
 export const GALLERY_MANAGER_ROLES = ['secretary', 'admin'];
 export const USERS_MANAGER_ROLES = ['admin'];
-export const SITE_SETTINGS_ALLOWED_ROLES = ['secretary', 'treasurer', 'articulator', 'admin'];
+export const SITE_SETTINGS_ALLOWED_ROLES = ['member', 'secretary', 'treasurer', 'articulator', 'admin'];
 
 export const SITE_SETTINGS_TAB_ACCESS = {
   homepage: ['articulator', 'admin'],
-  communities: ['articulator', 'admin'],
-  pastorals: ['articulator', 'admin'],
+  units: ['member', 'articulator', 'admin'],
   team: ['secretary', 'treasurer', 'articulator', 'admin'],
   contact: ['secretary', 'treasurer', 'articulator', 'admin'],
 };

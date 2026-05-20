@@ -33,7 +33,7 @@ import {
 import { deleteStoragePaths, isSupabaseReady, uploadImageFile } from '@/lib/supabaseStorage';
 import { getPastoralCategoryLabel, normalizePastoralItem } from '@/lib/pastorals';
 import { getAllowedSiteSettingsTabs } from '@/lib/accessControl';
-import SettingsPastoralsPanel from '@/pages/admin/SettingsPastoralsPanel';
+import SettingsOrgUnitsPanel from '@/pages/admin/SettingsOrgUnitsPanel';
 
 const showSyncWarning = (toast, error) => {
   toast({
@@ -1945,12 +1945,16 @@ const SettingsContactAbout = () => {
 
 const SiteSettings = () => {
   const { user } = useAuth();
+  const hasLinkedEditableUnits =
+    user?.role !== 'member' ||
+    (user?.orgUnits || []).some((link) =>
+      ['community', 'pastoral', 'movement', 'service'].includes(link.orgUnit?.type)
+    );
   const allowedTabs = getAllowedSiteSettingsTabs(user?.role);
   const defaultTab = allowedTabs.includes('contact') ? 'contact' : allowedTabs[0] || 'team';
   const visibleTabItems = [
     { key: 'homepage', label: 'Página Inicial' },
-    { key: 'communities', label: 'Comunidades' },
-    { key: 'pastorals', label: 'Pastorais' },
+    { key: 'units', label: 'Unidades' },
     { key: 'team', label: 'Adm. Paroquial' },
     { key: 'contact', label: 'Contato/Sobre' },
   ].filter((item) => allowedTabs.includes(item.key));
@@ -1970,43 +1974,45 @@ const SiteSettings = () => {
       </Helmet>
       <div className="container mx-auto p-4 md:p-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-8">Configurações do Site</h1>
-        <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList className={`mb-6 grid w-full ${tabsGridClass}`}>
-            {visibleTabItems.map((item) => (
-              <TabsTrigger key={item.key} value={item.key}>
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          <div className="p-6 bg-white rounded-lg shadow-md">
-            {allowedTabs.includes('homepage') ? (
-              <TabsContent value="homepage">
-                <SettingsHomePage />
-              </TabsContent>
-            ) : null}
-            {allowedTabs.includes('communities') ? (
-              <TabsContent value="communities">
-                <SettingsCommunities />
-              </TabsContent>
-            ) : null}
-            {allowedTabs.includes('pastorals') ? (
-              <TabsContent value="pastorals">
-                <SettingsPastoralsPanel />
-              </TabsContent>
-            ) : null}
-            {allowedTabs.includes('team') ? (
-              <TabsContent value="team">
-                <SettingsTeam />
-              </TabsContent>
-            ) : null}
-            {allowedTabs.includes('contact') ? (
-              <TabsContent value="contact">
-                <SettingsContactAbout />
-              </TabsContent>
-            ) : null}
+        {user?.role === 'member' && !hasLinkedEditableUnits ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 shadow-sm">
+            Seu perfil de coordenador ainda não possui comunidades, pastorais, movimentos ou serviços vinculados.
+            Solicite a vinculação em Gerenciar Usuários para liberar a edição desta área.
           </div>
-        </Tabs>
+        ) : (
+          <Tabs defaultValue={defaultTab} className="w-full">
+            <TabsList className={`mb-6 grid w-full ${tabsGridClass}`}>
+              {visibleTabItems.map((item) => (
+                <TabsTrigger key={item.key} value={item.key}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            <div className="p-6 bg-white rounded-lg shadow-md">
+              {allowedTabs.includes('homepage') ? (
+                <TabsContent value="homepage">
+                  <SettingsHomePage />
+                </TabsContent>
+              ) : null}
+              {allowedTabs.includes('units') ? (
+                <TabsContent value="units">
+                  <SettingsOrgUnitsPanel />
+                </TabsContent>
+              ) : null}
+              {allowedTabs.includes('team') ? (
+                <TabsContent value="team">
+                  <SettingsTeam />
+                </TabsContent>
+              ) : null}
+              {allowedTabs.includes('contact') ? (
+                <TabsContent value="contact">
+                  <SettingsContactAbout />
+                </TabsContent>
+              ) : null}
+            </div>
+          </Tabs>
+        )}
       </div>
     </>
   );

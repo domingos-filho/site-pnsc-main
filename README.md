@@ -211,6 +211,13 @@ Para preparar os módulos internos de mini mercado, inventário e mesas, veja:
 - `supabase/operacoes_v1_foundation_schema.sql`
 - `supabase/operacoes_v1_foundation_backfill.sql`
 
+## Conteudo institucional por unidade
+Para migrar comunidades, pastorais, movimentos e servicos para um modelo relacional com permissao por vinculo institucional, veja:
+
+- `docs/site-content-org-units-v1.md`
+- `supabase/org_unit_site_content_v1_schema.sql`
+- `supabase/org_unit_site_content_v1_backfill.sql`
+
 ## Publicar no GitHub
 ```bash
 git init

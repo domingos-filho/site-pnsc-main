@@ -15,12 +15,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useData } from '@/contexts/DataContext';
+import { usePublicOrgUnitContent } from '@/hooks/usePublicOrgUnitContent';
 import {
   buildPastoralAgendaHref,
   buildPastoralWhatsAppHref,
   getPastoralCategoryLabel,
-  getPastoralSections,
   pastoralMatchesSearch,
 } from '@/lib/pastorals';
 
@@ -134,11 +133,18 @@ const PastoralCard = ({ item }) => {
 };
 
 const Pastorals = () => {
-  const { siteData, loading } = useData();
+  const { pastoralSections, loading } = usePublicOrgUnitContent();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  const sections = useMemo(() => getPastoralSections(siteData.pastorals), [siteData.pastorals]);
+  const sections = useMemo(
+    () => [
+      { key: 'pastorais', title: 'Pastorais', items: pastoralSections.pastorais || [] },
+      { key: 'movimentos', title: 'Movimentos', items: pastoralSections.movimentos || [] },
+      { key: 'servicos', title: 'Serviços', items: pastoralSections.servicos || [] },
+    ],
+    [pastoralSections]
+  );
 
   const filteredSections = useMemo(() => {
     return sections
@@ -191,7 +197,7 @@ const Pastorals = () => {
           </div>
         </section>
 
-        <section className="relative z-10 -mt-10 container mx-auto px-4 pb-4">
+        <section className="relative z-10 container mx-auto -mt-10 px-4 pb-4">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr,1fr]">
               <div>

@@ -14,12 +14,11 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useData } from '@/contexts/DataContext';
+import { usePublicOrgUnitContent } from '@/hooks/usePublicOrgUnitContent';
 import { loadPublicCalendarData } from '@/lib/calendarData';
 import {
   buildPastoralAgendaHref,
   buildPastoralWhatsAppHref,
-  findPastoralBySlug,
   getPastoralCategoryLabel,
 } from '@/lib/pastorals';
 
@@ -79,12 +78,12 @@ const matchesPastoralEvent = (event, pastoral) => {
 
 const PastoralDetail = () => {
   const { slug } = useParams();
-  const { siteData, loading } = useData();
+  const { pastoralItems, loading } = usePublicOrgUnitContent();
   const { loading: authLoading } = useAuth();
   const [relatedEvents, setRelatedEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
-  const pastoral = useMemo(() => findPastoralBySlug(siteData.pastorals, slug), [siteData.pastorals, slug]);
+  const pastoral = useMemo(() => pastoralItems.find((item) => item.slug === slug) || null, [pastoralItems, slug]);
 
   useEffect(() => {
     let isMounted = true;
