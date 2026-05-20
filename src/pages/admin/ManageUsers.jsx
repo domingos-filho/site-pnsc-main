@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -46,6 +47,8 @@ const createEmptyModuleAccess = (modules) =>
 
 const hasAnyPermission = (access) =>
   Boolean(access?.can_read || access?.can_write || access?.can_approve || access?.can_admin);
+
+const formatSupabaseError = (error, fallback) => error?.message || fallback;
 
 const enrichProfiles = (profileRows, orgLinksRows, moduleAccessRows) => {
   const orgLinksByProfile = new Map();
@@ -408,7 +411,10 @@ const ManageUsers = () => {
     if (profileError) {
       toast({
         title: 'Erro',
-        description: 'Não foi possível atualizar os dados básicos do perfil.',
+        description: formatSupabaseError(
+          profileError,
+          'Não foi possível atualizar os dados básicos do perfil.'
+        ),
         variant: 'destructive',
       });
       setIsSaving(false);
@@ -640,6 +646,9 @@ const ManageUsers = () => {
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Editar perfil operacional</DialogTitle>
+            <DialogDescription>
+              Ajuste papel, vínculos institucionais e permissões de módulo do usuário selecionado.
+            </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSaveProfile} className="space-y-4">

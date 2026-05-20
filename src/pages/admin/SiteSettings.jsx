@@ -35,10 +35,12 @@ import { getPastoralCategoryLabel, normalizePastoralItem } from '@/lib/pastorals
 import { getAllowedSiteSettingsTabs } from '@/lib/accessControl';
 import SettingsPastoralsPanel from '@/pages/admin/SettingsPastoralsPanel';
 
-const showSyncWarning = (toast) => {
+const showSyncWarning = (toast, error) => {
   toast({
-    title: 'Aviso',
-    description: 'Alterações salvas localmente, mas não foi possível sincronizar com o Supabase.',
+    title: 'Erro de sincronização',
+    description:
+      error?.message || 'Alterações salvas localmente, mas não foi possível sincronizar com o Supabase.',
+    variant: 'destructive',
   });
 };
 
@@ -301,7 +303,7 @@ const SettingsHomePage = () => {
       setPatronessFile(null);
 
       if (!result.ok) {
-        showSyncWarning(toast);
+        showSyncWarning(toast, result.error);
       } else {
         toast({ title: 'Sucesso!', description: 'Página inicial atualizada.' });
       }
@@ -331,7 +333,7 @@ const SettingsHomePage = () => {
     const updatedImages = siteData.home.heroImages.filter((img) => img.id !== id);
     const result = await updateSiteData({ ...siteData, home: { ...siteData.home, heroImages: updatedImages } });
     if (!result.ok) {
-      showSyncWarning(toast);
+      showSyncWarning(toast, result.error);
     } else {
       toast({ title: 'Sucesso!', description: 'Imagem do banner removida.' });
     }
@@ -429,7 +431,7 @@ const SettingsHomePage = () => {
       });
 
       if (!result.ok) {
-        showSyncWarning(toast);
+        showSyncWarning(toast, result.error);
       } else {
         toast({ title: 'Sucesso!', description: `Notícia ${editingNews ? 'atualizada' : 'criada'}.` });
       }
@@ -466,7 +468,7 @@ const SettingsHomePage = () => {
     });
 
     if (!result.ok) {
-      showSyncWarning(toast);
+      showSyncWarning(toast, result.error);
     } else {
       toast({ title: 'Sucesso!', description: 'Notícia removida.' });
     }
@@ -488,7 +490,7 @@ const SettingsHomePage = () => {
         },
       });
       if (!result.ok) {
-        showSyncWarning(toast);
+        showSyncWarning(toast, result.error);
       } else {
         toast({ title: 'Sucesso!', description: 'Configurações de notícias atualizadas.' });
       }
@@ -1031,7 +1033,7 @@ const SettingsCommunities = () => {
       }
 
       if (!result.ok) {
-        showSyncWarning(toast);
+        showSyncWarning(toast, result.error);
       } else {
         toast({
           title: 'Sucesso!',
@@ -1073,7 +1075,7 @@ const SettingsCommunities = () => {
       }
     }
     if (!result.ok) {
-      showSyncWarning(toast);
+      showSyncWarning(toast, result.error);
     } else {
       toast({ title: 'Sucesso!', description: 'Comunidade excluída.' });
     }
@@ -1267,7 +1269,7 @@ const SettingsPastorals = () => {
     });
 
     if (!result.ok) {
-      showSyncWarning(toast);
+      showSyncWarning(toast, result.error);
     } else {
       toast({ title: 'Sucesso!', description: `Item ${currentItem ? 'atualizado' : 'criado'}.` });
     }
@@ -1283,7 +1285,7 @@ const SettingsPastorals = () => {
       pastorals: { ...siteData.pastorals, [category]: updatedCategoryItems },
     });
     if (!result.ok) {
-      showSyncWarning(toast);
+      showSyncWarning(toast, result.error);
     } else {
       toast({ title: 'Sucesso!', description: 'Item excluído.' });
     }
@@ -1517,7 +1519,7 @@ const SettingsTeam = () => {
       }
       const result = await updateSiteData({ ...siteData, team: updatedTeam });
       if (!result.ok) {
-        showSyncWarning(toast);
+        showSyncWarning(toast, result.error);
       } else {
         toast({ title: 'Sucesso!', description: `Membro ${currentItem ? 'atualizado' : 'adicionado'}.` });
       }
@@ -1554,7 +1556,7 @@ const SettingsTeam = () => {
     const updatedTeam = siteData.team.filter((t) => t.id !== id);
     const result = await updateSiteData({ ...siteData, team: updatedTeam });
     if (!result.ok) {
-      showSyncWarning(toast);
+      showSyncWarning(toast, result.error);
     } else {
       toast({ title: 'Sucesso!', description: 'Membro da equipe removido.' });
     }
@@ -1775,7 +1777,7 @@ const SettingsContactAbout = () => {
 
       const result = await updateSiteData(updatedData);
       if (!result.ok) {
-        showSyncWarning(toast);
+        showSyncWarning(toast, result.error);
       } else {
         toast({ title: 'Sucesso!', description: 'Informações atualizadas.' });
       }

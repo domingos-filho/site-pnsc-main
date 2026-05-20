@@ -20,8 +20,6 @@ export const ALL_AUTHENTICATED_ROLES = [...ROLE_KEYS];
 export const AGENDA_MANAGER_ROLES = ['secretary', 'admin'];
 export const GALLERY_MANAGER_ROLES = ['secretary', 'admin'];
 export const USERS_MANAGER_ROLES = ['admin'];
-export const SITE_SETTINGS_FULL_ROLES = ['articulator', 'admin'];
-export const SITE_SETTINGS_LIMITED_ROLES = ['secretary', 'treasurer', 'admin'];
 export const SITE_SETTINGS_ALLOWED_ROLES = ['secretary', 'treasurer', 'articulator', 'admin'];
 
 export const SITE_SETTINGS_TAB_ACCESS = {

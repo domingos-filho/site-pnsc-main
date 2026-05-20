@@ -250,7 +250,7 @@ as $$
     select 1
     from public.profiles
     where id = auth.uid()
-      and role in ('member', 'secretary', 'treasurer', 'articulator', 'admin', 'coordinator')
+      and role in ('member', 'secretary', 'treasurer', 'articulator', 'admin')
   );
 $$;
 
