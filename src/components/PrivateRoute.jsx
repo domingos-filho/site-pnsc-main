@@ -3,8 +3,8 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasRoleAccess } from '@/lib/accessControl';
 
-const PrivateRoute = ({ children, requiredRole }) => {
-  const { user, loading } = useAuth();
+const PrivateRoute = ({ children, requiredRole, requiredModule, requiredModulePermission = 'read' }) => {
+  const { user, loading, hasModuleAccess } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -25,6 +25,10 @@ const PrivateRoute = ({ children, requiredRole }) => {
     if (!hasRoleAccess(user.role, requiredRoles)) {
       return <Navigate to="/dashboard" replace />;
     }
+  }
+
+  if (requiredModule && !hasModuleAccess(requiredModule, requiredModulePermission)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

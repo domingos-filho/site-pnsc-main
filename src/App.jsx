@@ -28,6 +28,7 @@ const Login = lazy(() => import('@/pages/Login'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const ManageEvents = lazy(() => import('@/pages/admin/ManageEvents'));
 const ManageGallery = lazy(() => import('@/pages/admin/ManageGallery'));
+const ManageInventory = lazy(() => import('@/pages/admin/ManageInventory'));
 const ManageUsers = lazy(() => import('@/pages/admin/ManageUsers'));
 const SiteSettings = lazy(() => import('@/pages/admin/SiteSettings'));
 
@@ -76,6 +77,22 @@ function App() {
                 element={
                   <PrivateRoute requiredRole={GALLERY_MANAGER_ROLES}>
                     <ManageGallery />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/dashboard/inventory"
+                element={
+                  <PrivateRoute requiredModule="inventory">
+                    <ManageInventory />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/dashboard/inventory/:inventoryId"
+                element={
+                  <PrivateRoute requiredModule="inventory">
+                    <ManageInventory />
                   </PrivateRoute>
                 }
               />

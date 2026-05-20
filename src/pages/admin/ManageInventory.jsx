@@ -1,0 +1,2142 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Helmet } from 'react-helmet';
+import { motion } from 'framer-motion';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Boxes,
+  Download,
+  Filter,
+  History,
+  Image,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { isSupabaseReady, supabase } from '@/lib/supabaseClient';
+import {
+  formatInventoryError,
+  getInventorySignedUrl,
+  removeInventoryStorageObject,
+  uploadInventoryAttachmentFile,
+} from '@/lib/inventory';
+
+const orgUnitTypeLabels = {
+  community: 'Comunidade',
+  pastoral: 'Pastoral',
+  movement: 'Movimento',
+  service: 'Servico',
+};
+
+const inventoryTypeOptions = [
+  { value: 'mixed', label: 'Misto' },
+  { value: 'consumables', label: 'Consumo' },
+  { value: 'assets', label: 'Patrimonio' },
+  { value: 'documents', label: 'Documentos' },
+  { value: 'other', label: 'Outro' },
+];
+
+const itemTypeOptions = [
+  { value: 'consumable', label: 'Consumo' },
+  { value: 'asset', label: 'Patrimonio' },
+  { value: 'document', label: 'Documento' },
+  { value: 'other', label: 'Outro' },
+];
+
+const trackingModeOptions = [
+  { value: 'quantity', label: 'Quantidade' },
+  { value: 'serial', label: 'Serial' },
+];
+
+const conditionStatusOptions = [
+  { value: 'new', label: 'Novo' },
+  { value: 'good', label: 'Bom' },
+  { value: 'fair', label: 'Regular' },
+  { value: 'repair', label: 'Em reparo' },
+  { value: 'retired', label: 'Baixado' },
+];
+
+const movementTypeOptions = [
+  { value: 'entry', label: 'Entrada' },
+  { value: 'exit', label: 'Saida' },
+  { value: 'adjustment', label: 'Ajuste' },
+  { value: 'transfer_in', label: 'Transferencia recebida' },
+  { value: 'transfer_out', label: 'Transferencia enviada' },
+  { value: 'stocktake', label: 'Contagem' },
+  { value: 'writeoff', label: 'Baixa' },
+];
+
+const attachmentKindOptions = [
+  { value: 'image', label: 'Imagem' },
+  { value: 'invoice', label: 'Nota fiscal' },
+  { value: 'document', label: 'Documento' },
+  { value: 'other', label: 'Outro' },
+];
+
+const movementReferenceSuggestions = [
+  'compra',
+  'doacao',
+  'emprestimo',
+  'evento',
+  'inventario',
+  'manutencao',
+  'reposicao',
+  'transferencia',
+];
+
+const createLocalDateTimeValue = () => {
+  const now = new Date();
+  const offsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
+};
+
+const createEmptyInventoryForm = (orgUnitId = '') => ({
+  orgUnitId,
+  name: '',
+  slug: '',
+  description: '',
+  inventoryType: 'mixed',
+  isActive: true,
+});
+
+const createEmptyItemForm = () => ({
+  sku: '',
+  name: '',
+  description: '',
+  itemType: 'consumable',
+  trackingMode: 'quantity',
+  unitLabel: 'un',
+  minimumQuantity: '0',
+  idealQuantity: '',
+  locationText: '',
+  brand: '',
+  model: '',
+  serialNumber: '',
+  conditionStatus: 'good',
+  acquisitionDate: '',
+  acquisitionCost: '',
+  isActive: true,
+});
+
+const createEmptyMovementForm = () => ({
+  movementType: 'entry',
+  quantity: '',
+  referenceType: '',
+  referenceCode: '',
+  notes: '',
+  occurredAt: createLocalDateTimeValue(),
+});
+
+const createEmptyAttachmentForm = () => ({
+  file: null,
+  kind: 'image',
+  caption: '',
+  isCover: false,
+});
+
+const normalizeNestedOrgUnit = (value) => (Array.isArray(value) ? value[0] : value || null);
+
+const normalizeInventoryRow = (row) => ({
+  ...row,
+  orgUnit: normalizeNestedOrgUnit(row.org_units),
+});
+
+const trimOrNull = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized || null;
+};
+
+const parseNumberOrNull = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseNumberOrZero = (value) => {
+  const parsed = parseNumberOrNull(value);
+  return parsed === null ? 0 : parsed;
+};
+
+const formatQuantity = (value, unitLabel) => {
+  const numeric = Number(value || 0);
+  const formatted = Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(3).replace(/\.?0+$/, '');
+  return `${formatted} ${unitLabel || 'un'}`.trim();
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '-';
+
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+};
+
+const normalizeSearch = (value) => String(value || '').trim().toLocaleLowerCase('pt-BR');
+
+const attachmentKindLabel = (kind) =>
+  attachmentKindOptions.find((option) => option.value === kind)?.label || kind;
+
+const movementTypeLabel = (type) =>
+  movementTypeOptions.find((option) => option.value === type)?.label || type;
+
+const buildMovementReferenceSummary = (movement) => {
+  const referenceType = trimOrNull(movement.reference_type);
+  const referenceCode = trimOrNull(movement.reference_code);
+
+  if (referenceType && referenceCode) {
+    return `${referenceType} · ${referenceCode}`;
+  }
+
+  if (referenceType) return referenceType;
+  if (referenceCode) return referenceCode;
+  return null;
+};
+
+const triggerBrowserDownload = (url, fileName) => {
+  if (!url) return;
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'anexo';
+  link.target = '_blank';
+  link.rel = 'noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const buildMovementDelta = (movementType, quantityInput) => {
+  const parsed = Number(quantityInput);
+  if (!Number.isFinite(parsed) || parsed === 0) {
+    return null;
+  }
+
+  switch (movementType) {
+    case 'entry':
+    case 'transfer_in':
+      return Math.abs(parsed);
+    case 'exit':
+    case 'transfer_out':
+    case 'writeoff':
+      return -Math.abs(parsed);
+    case 'adjustment':
+    case 'stocktake':
+    default:
+      return parsed;
+  }
+};
+
+const movementHelpText = (movementType) => {
+  if (movementType === 'adjustment' || movementType === 'stocktake') {
+    return 'Use valor positivo para acrescentar saldo e negativo para reduzir.';
+  }
+
+  return 'Informe um valor positivo. O sistema aplica o sinal conforme o tipo de movimentacao.';
+};
+
+const InventoryFormDialog = ({
+  open,
+  onOpenChange,
+  mode,
+  formState,
+  setFormState,
+  onSubmit,
+  availableOrgUnits,
+  saving,
+}) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>{mode === 'create' ? 'Novo inventario' : 'Editar inventario'}</DialogTitle>
+        <DialogDescription>
+          Cada inventario fica vinculado a uma unidade organizacional e segue as permissões do modulo.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="inventory-org-unit">Unidade</Label>
+          <select
+            id="inventory-org-unit"
+            value={formState.orgUnitId}
+            onChange={(event) => setFormState((current) => ({ ...current, orgUnitId: event.target.value }))}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Selecione</option>
+            {availableOrgUnits.map((orgUnit) => (
+              <option key={orgUnit.id} value={orgUnit.id}>
+                [{orgUnitTypeLabels[orgUnit.type] || orgUnit.type}] {orgUnit.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="inventory-type">Tipo</Label>
+          <select
+            id="inventory-type"
+            value={formState.inventoryType}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, inventoryType: event.target.value }))
+            }
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            {inventoryTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="inventory-name">Nome</Label>
+          <Input
+            id="inventory-name"
+            value={formState.name}
+            onChange={(event) => setFormState((current) => ({ ...current, name: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="inventory-slug">Slug opcional</Label>
+          <Input
+            id="inventory-slug"
+            value={formState.slug}
+            onChange={(event) => setFormState((current) => ({ ...current, slug: event.target.value }))}
+            placeholder="Deixe vazio para gerar a partir do nome"
+          />
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="inventory-description">Descricao</Label>
+          <Textarea
+            id="inventory-description"
+            value={formState.description}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, description: event.target.value }))
+            }
+          />
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
+          <input
+            type="checkbox"
+            checked={formState.isActive}
+            onChange={(event) => setFormState((current) => ({ ...current, isActive: event.target.checked }))}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600"
+          />
+          Inventario ativo
+        </label>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button onClick={onSubmit} disabled={saving}>
+          {saving ? 'Salvando...' : mode === 'create' ? 'Criar inventario' : 'Salvar ajustes'}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
+const ItemFormDialog = ({
+  open,
+  onOpenChange,
+  mode,
+  formState,
+  setFormState,
+  currentQuantity,
+  onSubmit,
+  saving,
+}) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-w-4xl">
+      <DialogHeader>
+        <DialogTitle>{mode === 'create' ? 'Novo item' : 'Editar item'}</DialogTitle>
+        <DialogDescription>
+          O saldo atual e controlado pelas movimentacoes. Ajustes de quantidade devem ser feitos no historico.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="item-name">Nome</Label>
+          <Input
+            id="item-name"
+            value={formState.name}
+            onChange={(event) => setFormState((current) => ({ ...current, name: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="item-sku">SKU</Label>
+          <Input
+            id="item-sku"
+            value={formState.sku}
+            onChange={(event) => setFormState((current) => ({ ...current, sku: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="item-description">Descricao</Label>
+          <Textarea
+            id="item-description"
+            value={formState.description}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, description: event.target.value }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="item-type">Tipo</Label>
+          <select
+            id="item-type"
+            value={formState.itemType}
+            onChange={(event) => setFormState((current) => ({ ...current, itemType: event.target.value }))}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            {itemTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tracking-mode">Rastreamento</Label>
+          <select
+            id="tracking-mode"
+            value={formState.trackingMode}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, trackingMode: event.target.value }))
+            }
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            {trackingModeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="unit-label">Unidade</Label>
+          <Input
+            id="unit-label"
+            value={formState.unitLabel}
+            onChange={(event) => setFormState((current) => ({ ...current, unitLabel: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="condition-status">Estado</Label>
+          <select
+            id="condition-status"
+            value={formState.conditionStatus}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, conditionStatus: event.target.value }))
+            }
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            {conditionStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="minimum-quantity">Estoque minimo</Label>
+          <Input
+            id="minimum-quantity"
+            type="number"
+            step="0.001"
+            value={formState.minimumQuantity}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, minimumQuantity: event.target.value }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="ideal-quantity">Estoque ideal</Label>
+          <Input
+            id="ideal-quantity"
+            type="number"
+            step="0.001"
+            value={formState.idealQuantity}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, idealQuantity: event.target.value }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="current-quantity">Saldo atual</Label>
+          <Input id="current-quantity" value={currentQuantity} readOnly disabled />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="location-text">Localizacao</Label>
+          <Input
+            id="location-text"
+            value={formState.locationText}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, locationText: event.target.value }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="brand">Marca</Label>
+          <Input
+            id="brand"
+            value={formState.brand}
+            onChange={(event) => setFormState((current) => ({ ...current, brand: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="model">Modelo</Label>
+          <Input
+            id="model"
+            value={formState.model}
+            onChange={(event) => setFormState((current) => ({ ...current, model: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="serial-number">Serial</Label>
+          <Input
+            id="serial-number"
+            value={formState.serialNumber}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, serialNumber: event.target.value }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="acquisition-date">Data de aquisicao</Label>
+          <Input
+            id="acquisition-date"
+            type="date"
+            value={formState.acquisitionDate}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, acquisitionDate: event.target.value }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="acquisition-cost">Custo de aquisicao</Label>
+          <Input
+            id="acquisition-cost"
+            type="number"
+            step="0.01"
+            value={formState.acquisitionCost}
+            onChange={(event) =>
+              setFormState((current) => ({ ...current, acquisitionCost: event.target.value }))
+            }
+          />
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
+          <input
+            type="checkbox"
+            checked={formState.isActive}
+            onChange={(event) => setFormState((current) => ({ ...current, isActive: event.target.checked }))}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600"
+          />
+          Item ativo
+        </label>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button onClick={onSubmit} disabled={saving}>
+          {saving ? 'Salvando...' : mode === 'create' ? 'Criar item' : 'Salvar item'}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
+const ManageInventory = () => {
+  const { inventoryId: inventoryIdParam } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user, hasModuleAccess } = useAuth();
+
+  const [inventories, setInventories] = useState([]);
+  const [availableOrgUnits, setAvailableOrgUnits] = useState([]);
+  const [items, setItems] = useState([]);
+  const [movements, setMovements] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [loadingInventories, setLoadingInventories] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [loadingItemDetails, setLoadingItemDetails] = useState(false);
+  const [inventoryDialogOpen, setInventoryDialogOpen] = useState(false);
+  const [inventoryDialogMode, setInventoryDialogMode] = useState('create');
+  const [inventoryForm, setInventoryForm] = useState(createEmptyInventoryForm());
+  const [itemDialogOpen, setItemDialogOpen] = useState(false);
+  const [itemDialogMode, setItemDialogMode] = useState('create');
+  const [itemForm, setItemForm] = useState(createEmptyItemForm());
+  const [savingInventory, setSavingInventory] = useState(false);
+  const [savingItem, setSavingItem] = useState(false);
+  const [savingMovement, setSavingMovement] = useState(false);
+  const [savingAttachment, setSavingAttachment] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [itemSearch, setItemSearch] = useState('');
+  const [itemTypeFilter, setItemTypeFilter] = useState('all');
+  const [itemStatusFilter, setItemStatusFilter] = useState('all');
+  const [movementSearch, setMovementSearch] = useState('');
+  const [movementTypeFilter, setMovementTypeFilter] = useState('all');
+  const [movementForm, setMovementForm] = useState(createEmptyMovementForm());
+  const [attachmentKindFilter, setAttachmentKindFilter] = useState('all');
+  const [attachmentForm, setAttachmentForm] = useState(createEmptyAttachmentForm());
+  const [attachmentInputKey, setAttachmentInputKey] = useState(0);
+  const [editingInventoryId, setEditingInventoryId] = useState(null);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [selectedInventoryId, setSelectedInventoryId] = useState(null);
+  const [selectedItemId, setSelectedItemId] = useState(null);
+
+  const canWriteInventory = hasModuleAccess('inventory', 'write');
+  const canAdminInventory = hasModuleAccess('inventory', 'admin');
+  const isDedicatedInventoryView = Boolean(inventoryIdParam);
+
+  const activeInventory = useMemo(
+    () => inventories.find((inventory) => inventory.id === selectedInventoryId) || null,
+    [inventories, selectedInventoryId]
+  );
+
+  const activeItem = useMemo(
+    () => items.find((item) => item.id === selectedItemId) || null,
+    [items, selectedItemId]
+  );
+
+  const lowStockCount = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          item.is_active &&
+          Number(item.minimum_quantity || 0) > 0 &&
+          Number(item.current_quantity || 0) <= Number(item.minimum_quantity || 0)
+      ).length,
+    [items]
+  );
+
+  const filteredInventories = useMemo(() => {
+    const query = normalizeSearch(inventorySearch);
+    if (!query) return inventories;
+
+    return inventories.filter((inventory) =>
+      [
+        inventory.name,
+        inventory.slug,
+        inventory.description,
+        inventory.orgUnit?.name,
+        inventory.orgUnit?.type,
+      ]
+        .filter(Boolean)
+        .some((value) => normalizeSearch(value).includes(query))
+    );
+  }, [inventories, inventorySearch]);
+
+  const filteredItems = useMemo(() => {
+    const query = normalizeSearch(itemSearch);
+
+    return items.filter((item) => {
+      const matchesQuery =
+        !query ||
+        [
+          item.name,
+          item.sku,
+          item.description,
+          item.location_text,
+          item.brand,
+          item.model,
+          item.serial_number,
+        ]
+          .filter(Boolean)
+          .some((value) => normalizeSearch(value).includes(query));
+
+      const matchesType = itemTypeFilter === 'all' || item.item_type === itemTypeFilter;
+      const isLowStock =
+        Number(item.minimum_quantity || 0) > 0 &&
+        Number(item.current_quantity || 0) <= Number(item.minimum_quantity || 0);
+      const matchesStatus =
+        itemStatusFilter === 'all' ||
+        (itemStatusFilter === 'low_stock' && isLowStock) ||
+        (itemStatusFilter === 'inactive' && !item.is_active) ||
+        (itemStatusFilter === 'active' && item.is_active);
+
+      return matchesQuery && matchesType && matchesStatus;
+    });
+  }, [items, itemSearch, itemStatusFilter, itemTypeFilter]);
+
+  const filteredMovements = useMemo(() => {
+    const query = normalizeSearch(movementSearch);
+
+    return movements.filter((movement) => {
+      const matchesType = movementTypeFilter === 'all' || movement.movement_type === movementTypeFilter;
+      const matchesQuery =
+        !query ||
+        [
+          movement.movement_type,
+          movement.reference_type,
+          movement.reference_code,
+          movement.notes,
+          buildMovementReferenceSummary(movement),
+        ]
+          .filter(Boolean)
+          .some((value) => normalizeSearch(value).includes(query));
+
+      return matchesType && matchesQuery;
+    });
+  }, [movementSearch, movementTypeFilter, movements]);
+
+  const filteredAttachments = useMemo(() => {
+    return attachments.filter(
+      (attachment) => attachmentKindFilter === 'all' || attachment.kind === attachmentKindFilter
+    );
+  }, [attachmentKindFilter, attachments]);
+
+  const groupedAttachments = useMemo(() => {
+    return filteredAttachments.reduce((accumulator, attachment) => {
+      const key = attachment.kind || 'other';
+      const currentGroup = accumulator[key] || [];
+      currentGroup.push(attachment);
+      accumulator[key] = currentGroup;
+      return accumulator;
+    }, {});
+  }, [filteredAttachments]);
+
+  const loadAvailableOrgUnits = async () => {
+    if (user?.role === 'admin') {
+      const { data, error } = await supabase
+        .from('org_units')
+        .select('id, type, slug, name')
+        .eq('is_active', true)
+        .order('type', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      return data || [];
+    }
+
+    return (user?.orgUnits || [])
+      .map((link) => link.orgUnit)
+      .filter(Boolean)
+      .sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`, 'pt-BR'));
+  };
+
+  const loadInventories = async () => {
+    if (!isSupabaseReady || !user) return;
+
+    setLoadingInventories(true);
+    try {
+      const [inventoriesResponse, orgUnitsResponse] = await Promise.all([
+        supabase
+          .from('inventories')
+          .select(
+            `
+              id,
+              org_unit_id,
+              slug,
+              name,
+              description,
+              inventory_type,
+              manager_profile_id,
+              is_active,
+              created_at,
+              updated_at,
+              org_units (
+                id,
+                type,
+                slug,
+                name
+              )
+            `
+          )
+          .order('name', { ascending: true }),
+        loadAvailableOrgUnits(),
+      ]);
+
+      if (inventoriesResponse.error) {
+        throw inventoriesResponse.error;
+      }
+
+      const normalizedInventories = (inventoriesResponse.data || []).map(normalizeInventoryRow);
+      setInventories(normalizedInventories);
+      setAvailableOrgUnits(orgUnitsResponse);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível carregar os inventários.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingInventories(false);
+    }
+  };
+
+  const loadItems = async (inventoryId) => {
+    if (!inventoryId || !isSupabaseReady) {
+      setItems([]);
+      return;
+    }
+
+    setLoadingItems(true);
+    try {
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .eq('inventory_id', inventoryId)
+        .order('name', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      setItems(data || []);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível carregar os itens do inventário.'),
+        variant: 'destructive',
+      });
+      setItems([]);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const loadItemDetails = async (itemId) => {
+    if (!itemId || !isSupabaseReady) {
+      setMovements([]);
+      setAttachments([]);
+      return;
+    }
+
+    setLoadingItemDetails(true);
+    try {
+      const [movementResponse, attachmentResponse] = await Promise.all([
+        supabase
+          .from('inventory_movements')
+          .select('*')
+          .eq('inventory_item_id', itemId)
+          .order('occurred_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('inventory_item_attachments')
+          .select('*')
+          .eq('inventory_item_id', itemId)
+          .order('is_cover', { ascending: false })
+          .order('created_at', { ascending: true }),
+      ]);
+
+      if (movementResponse.error) {
+        throw movementResponse.error;
+      }
+
+      if (attachmentResponse.error) {
+        throw attachmentResponse.error;
+      }
+
+      const attachmentsWithUrls = await Promise.all(
+        (attachmentResponse.data || []).map(async (attachment) => {
+          try {
+            const signedUrl = await getInventorySignedUrl(attachment.bucket_path);
+            return { ...attachment, signedUrl };
+          } catch {
+            return { ...attachment, signedUrl: null };
+          }
+        })
+      );
+
+      setMovements(movementResponse.data || []);
+      setAttachments(attachmentsWithUrls);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível carregar movimentos e anexos do item.'),
+        variant: 'destructive',
+      });
+      setMovements([]);
+      setAttachments([]);
+    } finally {
+      setLoadingItemDetails(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    if (!isSupabaseReady) {
+      toast({
+        title: 'Erro',
+        description: 'Supabase não configurado para o módulo de inventário.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    void loadInventories();
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (loadingInventories) return;
+
+    if (inventoryIdParam) {
+      const inventoryExists = inventories.some((inventory) => inventory.id === inventoryIdParam);
+      if (inventoryExists) {
+        setSelectedInventoryId(inventoryIdParam);
+        return;
+      }
+
+      if (inventories.length > 0) {
+        navigate(`/dashboard/inventory/${inventories[0].id}`, { replace: true });
+      } else {
+        setSelectedInventoryId(null);
+      }
+      return;
+    }
+
+    if (selectedInventoryId && inventories.some((inventory) => inventory.id === selectedInventoryId)) {
+      return;
+    }
+
+    if (inventories.length > 0) {
+      setSelectedInventoryId(inventories[0].id);
+    } else {
+      setSelectedInventoryId(null);
+    }
+  }, [inventoryIdParam, inventories, loadingInventories, navigate, selectedInventoryId]);
+
+  useEffect(() => {
+    if (!selectedInventoryId) {
+      setItems([]);
+      setSelectedItemId(null);
+      return;
+    }
+
+    void loadItems(selectedInventoryId);
+  }, [selectedInventoryId]);
+
+  useEffect(() => {
+    if (!items.length) {
+      setSelectedItemId(null);
+      return;
+    }
+
+    if (selectedItemId && items.some((item) => item.id === selectedItemId)) {
+      return;
+    }
+
+    setSelectedItemId(items[0].id);
+  }, [items, selectedItemId]);
+
+  useEffect(() => {
+    if (!filteredItems.length) {
+      return;
+    }
+
+    if (selectedItemId && filteredItems.some((item) => item.id === selectedItemId)) {
+      return;
+    }
+
+    setSelectedItemId(filteredItems[0].id);
+  }, [filteredItems, selectedItemId]);
+
+  useEffect(() => {
+    if (!selectedItemId) {
+      setMovements([]);
+      setAttachments([]);
+      return;
+    }
+
+    void loadItemDetails(selectedItemId);
+  }, [selectedItemId]);
+
+  const openCreateInventoryDialog = () => {
+    setInventoryDialogMode('create');
+    setEditingInventoryId(null);
+    setInventoryForm(createEmptyInventoryForm(availableOrgUnits[0]?.id || ''));
+    setInventoryDialogOpen(true);
+  };
+
+  const openEditInventoryDialog = (inventory) => {
+    setInventoryDialogMode('edit');
+    setEditingInventoryId(inventory.id);
+    setInventoryForm({
+      orgUnitId: inventory.org_unit_id,
+      name: inventory.name || '',
+      slug: inventory.slug || '',
+      description: inventory.description || '',
+      inventoryType: inventory.inventory_type || 'mixed',
+      isActive: Boolean(inventory.is_active),
+    });
+    setInventoryDialogOpen(true);
+  };
+
+  const saveInventory = async () => {
+    if (!inventoryForm.orgUnitId || !inventoryForm.name.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Informe a unidade e o nome do inventário.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingInventory(true);
+    try {
+      const payload = {
+        org_unit_id: inventoryForm.orgUnitId,
+        name: inventoryForm.name.trim(),
+        slug: trimOrNull(inventoryForm.slug),
+        description: trimOrNull(inventoryForm.description),
+        inventory_type: inventoryForm.inventoryType,
+        is_active: Boolean(inventoryForm.isActive),
+      };
+
+      let savedInventoryId = editingInventoryId;
+      if (inventoryDialogMode === 'create') {
+        const { data, error } = await supabase.from('inventories').insert(payload).select('id').single();
+        if (error) throw error;
+        savedInventoryId = data?.id || null;
+      } else {
+        const { error } = await supabase.from('inventories').update(payload).eq('id', editingInventoryId);
+        if (error) throw error;
+      }
+
+      await loadInventories();
+      setInventoryDialogOpen(false);
+      if (savedInventoryId) {
+        setSelectedInventoryId(savedInventoryId);
+        navigate(`/dashboard/inventory/${savedInventoryId}`);
+      }
+      toast({
+        title: 'Sucesso!',
+        description: `Inventário ${inventoryDialogMode === 'create' ? 'criado' : 'atualizado'}.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível salvar o inventário.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingInventory(false);
+    }
+  };
+
+  const deleteInventory = async (inventory) => {
+    if (!window.confirm(`Excluir o inventário "${inventory.name}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('inventories').delete().eq('id', inventory.id);
+      if (error) throw error;
+
+      await loadInventories();
+      if (selectedInventoryId === inventory.id) {
+        setSelectedInventoryId(null);
+        navigate('/dashboard/inventory');
+      }
+      toast({ title: 'Sucesso!', description: 'Inventário excluído.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(
+          error,
+          'Não foi possível excluir o inventário. Se houver itens vinculados, remova-os antes.'
+        ),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openCreateItemDialog = () => {
+    setItemDialogMode('create');
+    setEditingItemId(null);
+    setItemForm(createEmptyItemForm());
+    setItemDialogOpen(true);
+  };
+
+  const openEditItemDialog = (item) => {
+    setItemDialogMode('edit');
+    setEditingItemId(item.id);
+    setItemForm({
+      sku: item.sku || '',
+      name: item.name || '',
+      description: item.description || '',
+      itemType: item.item_type || 'consumable',
+      trackingMode: item.tracking_mode || 'quantity',
+      unitLabel: item.unit_label || 'un',
+      minimumQuantity: String(item.minimum_quantity ?? 0),
+      idealQuantity: item.ideal_quantity ?? '',
+      locationText: item.location_text || '',
+      brand: item.brand || '',
+      model: item.model || '',
+      serialNumber: item.serial_number || '',
+      conditionStatus: item.condition_status || 'good',
+      acquisitionDate: item.acquisition_date || '',
+      acquisitionCost: item.acquisition_cost ?? '',
+      isActive: Boolean(item.is_active),
+    });
+    setItemDialogOpen(true);
+  };
+
+  const saveItem = async () => {
+    if (!selectedInventoryId || !itemForm.name.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Informe ao menos o nome do item.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingItem(true);
+    try {
+      const payload = {
+        inventory_id: selectedInventoryId,
+        sku: trimOrNull(itemForm.sku),
+        name: itemForm.name.trim(),
+        description: trimOrNull(itemForm.description),
+        item_type: itemForm.itemType,
+        tracking_mode: itemForm.trackingMode,
+        unit_label: trimOrNull(itemForm.unitLabel) || 'un',
+        minimum_quantity: parseNumberOrZero(itemForm.minimumQuantity),
+        ideal_quantity: parseNumberOrNull(itemForm.idealQuantity),
+        location_text: trimOrNull(itemForm.locationText),
+        brand: trimOrNull(itemForm.brand),
+        model: trimOrNull(itemForm.model),
+        serial_number: trimOrNull(itemForm.serialNumber),
+        condition_status: itemForm.conditionStatus,
+        acquisition_date: trimOrNull(itemForm.acquisitionDate),
+        acquisition_cost: parseNumberOrNull(itemForm.acquisitionCost),
+        is_active: Boolean(itemForm.isActive),
+      };
+
+      let savedItemId = editingItemId;
+      if (itemDialogMode === 'create') {
+        const { data, error } = await supabase.from('inventory_items').insert(payload).select('id').single();
+        if (error) throw error;
+        savedItemId = data?.id || null;
+      } else {
+        const { error } = await supabase.from('inventory_items').update(payload).eq('id', editingItemId);
+        if (error) throw error;
+      }
+
+      await loadItems(selectedInventoryId);
+      setItemDialogOpen(false);
+      if (savedItemId) {
+        setSelectedItemId(savedItemId);
+      }
+      toast({
+        title: 'Sucesso!',
+        description: `Item ${itemDialogMode === 'create' ? 'criado' : 'atualizado'}.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível salvar o item.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingItem(false);
+    }
+  };
+
+  const deleteItem = async (item) => {
+    if (!window.confirm(`Excluir o item "${item.name}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('inventory_items').delete().eq('id', item.id);
+      if (error) throw error;
+
+      await loadItems(selectedInventoryId);
+      if (selectedItemId === item.id) {
+        setSelectedItemId(null);
+      }
+      toast({ title: 'Sucesso!', description: 'Item excluído.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(
+          error,
+          'Não foi possível excluir o item. Se houver histórico de movimentações, o item deve permanecer.'
+        ),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const submitMovement = async () => {
+    if (!activeItem) {
+      return;
+    }
+
+    const quantityDelta = buildMovementDelta(movementForm.movementType, movementForm.quantity);
+    if (!quantityDelta) {
+      toast({
+        title: 'Erro',
+        description: 'Informe uma quantidade válida para a movimentação.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingMovement(true);
+    try {
+      const { error } = await supabase.from('inventory_movements').insert({
+        inventory_item_id: activeItem.id,
+        movement_type: movementForm.movementType,
+        quantity_delta: quantityDelta,
+        reference_type: trimOrNull(movementForm.referenceType),
+        reference_code: trimOrNull(movementForm.referenceCode),
+        notes: trimOrNull(movementForm.notes),
+        occurred_at: movementForm.occurredAt ? new Date(movementForm.occurredAt).toISOString() : null,
+      });
+
+      if (error) throw error;
+
+      await Promise.all([loadItems(selectedInventoryId), loadItemDetails(activeItem.id)]);
+      setMovementForm(createEmptyMovementForm());
+      toast({ title: 'Sucesso!', description: 'Movimentação registrada.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível registrar a movimentação.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingMovement(false);
+    }
+  };
+
+  const clearExistingCoverIfNeeded = async (shouldSetCover) => {
+    if (!shouldSetCover || !activeItem) return;
+
+    const { error } = await supabase
+      .from('inventory_item_attachments')
+      .update({ is_cover: false })
+      .eq('inventory_item_id', activeItem.id)
+      .eq('is_cover', true);
+
+    if (error) {
+      throw error;
+    }
+  };
+
+  const submitAttachment = async () => {
+    if (!activeItem || !attachmentForm.file) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione um arquivo antes de enviar o anexo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingAttachment(true);
+    let uploadedPath = null;
+
+    try {
+      const shouldSetCover = attachmentForm.isCover || attachments.length === 0;
+      await clearExistingCoverIfNeeded(shouldSetCover);
+
+      uploadedPath = await uploadInventoryAttachmentFile({
+        inventoryItemId: activeItem.id,
+        file: attachmentForm.file,
+      });
+
+      const { error } = await supabase.from('inventory_item_attachments').insert({
+        inventory_item_id: activeItem.id,
+        bucket_id: 'inventory-media',
+        bucket_path: uploadedPath,
+        file_name: attachmentForm.file.name,
+        mime_type: attachmentForm.file.type || null,
+        file_size_bytes: attachmentForm.file.size || null,
+        kind: attachmentForm.kind,
+        caption: trimOrNull(attachmentForm.caption),
+        is_cover: shouldSetCover,
+      });
+
+      if (error) throw error;
+
+      await loadItemDetails(activeItem.id);
+      setAttachmentForm(createEmptyAttachmentForm());
+      setAttachmentInputKey((current) => current + 1);
+      toast({ title: 'Sucesso!', description: 'Anexo enviado.' });
+    } catch (error) {
+      if (uploadedPath) {
+        try {
+          await removeInventoryStorageObject(uploadedPath);
+        } catch {
+          // keep original error
+        }
+      }
+
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível enviar o anexo.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingAttachment(false);
+    }
+  };
+
+  const setAttachmentAsCover = async (attachment) => {
+    if (!activeItem) return;
+
+    try {
+      await clearExistingCoverIfNeeded(true);
+      const { error } = await supabase
+        .from('inventory_item_attachments')
+        .update({ is_cover: true })
+        .eq('id', attachment.id);
+
+      if (error) throw error;
+
+      await loadItemDetails(activeItem.id);
+      toast({ title: 'Sucesso!', description: 'Capa do item atualizada.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível atualizar a capa do item.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const deleteAttachment = async (attachment) => {
+    if (!window.confirm(`Remover o anexo "${attachment.file_name}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('inventory_item_attachments').delete().eq('id', attachment.id);
+      if (error) throw error;
+
+      try {
+        await removeInventoryStorageObject(attachment.bucket_path);
+      } catch {
+        toast({
+          title: 'Aviso',
+          description: 'O registro foi removido, mas não foi possível excluir o arquivo do Storage.',
+        });
+      }
+
+      await loadItemDetails(activeItem.id);
+      toast({ title: 'Sucesso!', description: 'Anexo removido.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível remover o anexo.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const downloadAttachment = async (attachment) => {
+    try {
+      const signedUrl = attachment.signedUrl || (await getInventorySignedUrl(attachment.bucket_path));
+      triggerBrowserDownload(signedUrl, attachment.file_name);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatInventoryError(error, 'Não foi possível gerar o download do anexo.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const downloadAttachmentGroup = async (attachmentGroup = []) => {
+    for (const attachment of attachmentGroup) {
+      // Small delay reduces the chance of the browser collapsing multiple downloads.
+      // This is not a zip export; it triggers one download per file in the group.
+      await downloadAttachment(attachment);
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+    }
+  };
+
+  const handleInventorySelection = (inventoryId) => {
+    setSelectedInventoryId(inventoryId);
+    navigate(`/dashboard/inventory/${inventoryId}`);
+  };
+
+  if (!user) return null;
+
+  return (
+    <>
+      <Helmet>
+        <title>Inventario - Paróquia de Nossa Senhora da Conceição</title>
+        <meta
+          name="description"
+          content="Controle de inventários, itens, movimentações e anexos por unidade institucional."
+        />
+      </Helmet>
+
+      <InventoryFormDialog
+        open={inventoryDialogOpen}
+        onOpenChange={setInventoryDialogOpen}
+        mode={inventoryDialogMode}
+        formState={inventoryForm}
+        setFormState={setInventoryForm}
+        onSubmit={saveInventory}
+        availableOrgUnits={availableOrgUnits}
+        saving={savingInventory}
+      />
+
+      <ItemFormDialog
+        open={itemDialogOpen}
+        onOpenChange={setItemDialogOpen}
+        mode={itemDialogMode}
+        formState={itemForm}
+        setFormState={setItemForm}
+        currentQuantity={activeItem ? formatQuantity(activeItem.current_quantity, activeItem.unit_label) : '-'}
+        onSubmit={saveItem}
+        saving={savingItem}
+      />
+
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 py-14 text-white">
+        <div className="container mx-auto px-4">
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-slate-100">
+              <Boxes className="h-4 w-4" />
+              Operacoes internas
+            </div>
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h1 className="text-4xl font-bold tracking-tight md:text-5xl">Inventario</h1>
+                <p className="mt-3 max-w-3xl text-base text-slate-200 md:text-lg">
+                  Controle inventarios por unidade, saldo atual, historico de movimentacoes e fotos/anexos em bucket privado.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" className="border-white/20 bg-white/10 text-white hover:bg-white/20" onClick={() => void loadInventories()}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Atualizar
+                </Button>
+                {canWriteInventory ? (
+                  <Button onClick={openCreateInventoryDialog}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Novo inventario
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      <section className="bg-slate-50 py-10">
+        <div className="container mx-auto px-4">
+          <div className="mb-8 grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-medium text-slate-500">Inventarios visiveis</div>
+              <div className="mt-2 text-3xl font-bold text-slate-900">{inventories.length}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-medium text-slate-500">Itens no inventario selecionado</div>
+              <div className="mt-2 text-3xl font-bold text-slate-900">{items.length}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-medium text-slate-500">Itens em atencao</div>
+              <div className="mt-2 text-3xl font-bold text-amber-600">{lowStockCount}</div>
+            </div>
+          </div>
+
+          {isDedicatedInventoryView && activeInventory ? (
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                    Modo dedicado do inventario
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-900">
+                    {activeInventory.name} · {activeInventory.orgUnit?.name || 'Unidade'}
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Use esta rota para trabalhar diretamente em um inventario especifico sem depender da lista geral.
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => navigate('/dashboard/inventory')}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Voltar para todos os inventarios
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className={`grid gap-6 ${isDedicatedInventoryView ? '' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}>
+            {!isDedicatedInventoryView ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Inventarios</h2>
+                  <p className="text-sm text-slate-500">Selecione a unidade que deseja operar.</p>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <Input
+                  value={inventorySearch}
+                  onChange={(event) => setInventorySearch(event.target.value)}
+                  placeholder="Buscar por inventario, unidade ou slug"
+                />
+              </div>
+
+              {loadingInventories ? (
+                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                  Carregando inventarios...
+                </div>
+              ) : inventories.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                  Nenhum inventario disponivel. Crie o primeiro quando o modulo estiver habilitado para a unidade.
+                </div>
+              ) : filteredInventories.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                  Nenhum inventario encontrado para o filtro informado.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredInventories.map((inventory) => {
+                    const isActive = inventory.id === selectedInventoryId;
+                    return (
+                      <button
+                        key={inventory.id}
+                        type="button"
+                        onClick={() => handleInventorySelection(inventory.id)}
+                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                          isActive
+                            ? 'border-blue-300 bg-blue-50 shadow-sm'
+                            : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900">{inventory.name}</div>
+                            <div className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                              {orgUnitTypeLabels[inventory.orgUnit?.type] || inventory.orgUnit?.type} ·{' '}
+                              {inventory.orgUnit?.name || 'Unidade'}
+                            </div>
+                            {inventory.description ? (
+                              <p className="mt-2 line-clamp-2 text-sm text-slate-600">{inventory.description}</p>
+                            ) : null}
+                          </div>
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                              inventory.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {inventory.is_active ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            ) : null}
+
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                {activeInventory ? (
+                  <>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                          {orgUnitTypeLabels[activeInventory.orgUnit?.type] || activeInventory.orgUnit?.type}
+                        </div>
+                        <h2 className="mt-2 text-2xl font-bold text-slate-900">{activeInventory.name}</h2>
+                        <p className="mt-2 text-sm text-slate-600">
+                          {activeInventory.description || 'Sem descricao cadastrada.'}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                          <span className="rounded-full bg-slate-100 px-3 py-1">Slug: {activeInventory.slug}</span>
+                          <span className="rounded-full bg-slate-100 px-3 py-1">
+                            Tipo: {inventoryTypeOptions.find((option) => option.value === activeInventory.inventory_type)?.label || activeInventory.inventory_type}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-3 py-1">
+                            Unidade: {activeInventory.orgUnit?.name || '-'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {(canWriteInventory || canAdminInventory) && (
+                        <div className="flex flex-wrap gap-2">
+                          {!isDedicatedInventoryView ? (
+                            <Button variant="outline" onClick={() => navigate(`/dashboard/inventory/${activeInventory.id}`)}>
+                              Foco neste inventario
+                            </Button>
+                          ) : null}
+                          {canWriteInventory ? (
+                            <Button variant="outline" onClick={() => openEditInventoryDialog(activeInventory)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Editar
+                            </Button>
+                          ) : null}
+                          {canAdminInventory ? (
+                            <Button variant="destructive" onClick={() => void deleteInventory(activeInventory)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </Button>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                    Selecione um inventario para gerenciar os itens.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Itens</h3>
+                    <p className="text-sm text-slate-500">Cadastro de patrimonio, consumo e documentos vinculados ao inventario.</p>
+                  </div>
+                  {activeInventory && canWriteInventory ? (
+                    <Button onClick={openCreateItemDialog}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Novo item
+                    </Button>
+                  ) : null}
+                </div>
+
+                {activeInventory ? (
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <Filter className="h-4 w-4" />
+                      Filtros e busca
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <Input
+                        value={itemSearch}
+                        onChange={(event) => setItemSearch(event.target.value)}
+                        placeholder="Buscar item, SKU, localizacao..."
+                        className="md:col-span-2"
+                      />
+                      <select
+                        value={itemTypeFilter}
+                        onChange={(event) => setItemTypeFilter(event.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="all">Todos os tipos</option>
+                        {itemTypeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={itemStatusFilter}
+                        onChange={(event) => setItemStatusFilter(event.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="all">Todos os estados</option>
+                        <option value="active">Apenas ativos</option>
+                        <option value="inactive">Apenas inativos</option>
+                        <option value="low_stock">Apenas estoque baixo</option>
+                      </select>
+                    </div>
+                  </div>
+                ) : null}
+
+                {!activeInventory ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                    Escolha um inventario para carregar os itens.
+                  </div>
+                ) : loadingItems ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                    Carregando itens...
+                  </div>
+                ) : items.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                    Nenhum item cadastrado neste inventario.
+                  </div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                    Nenhum item corresponde aos filtros atuais.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-left text-sm">
+                      <thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Item</th>
+                          <th className="px-4 py-3">Tipo</th>
+                          <th className="px-4 py-3">Saldo</th>
+                          <th className="px-4 py-3">Minimo</th>
+                          <th className="px-4 py-3">Localizacao</th>
+                          <th className="px-4 py-3 text-right">Acoes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredItems.map((item) => {
+                          const isSelected = item.id === selectedItemId;
+                          const isLowStock =
+                            Number(item.minimum_quantity || 0) > 0 &&
+                            Number(item.current_quantity || 0) <= Number(item.minimum_quantity || 0);
+
+                          return (
+                            <tr
+                              key={item.id}
+                              className={`border-b transition ${isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                            >
+                              <td className="px-4 py-4">
+                                <button
+                                  type="button"
+                                  className="text-left"
+                                  onClick={() => setSelectedItemId(item.id)}
+                                >
+                                  <div className="font-medium text-slate-900">{item.name}</div>
+                                  <div className="text-xs text-slate-500">
+                                    {item.sku || 'Sem SKU'} {item.serial_number ? `· Serial ${item.serial_number}` : ''}
+                                  </div>
+                                </button>
+                              </td>
+                              <td className="px-4 py-4 text-slate-600">
+                                {itemTypeOptions.find((option) => option.value === item.item_type)?.label || item.item_type}
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className={isLowStock ? 'font-semibold text-amber-700' : 'text-slate-700'}>
+                                  {formatQuantity(item.current_quantity, item.unit_label)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4 text-slate-600">
+                                {formatQuantity(item.minimum_quantity, item.unit_label)}
+                              </td>
+                              <td className="px-4 py-4 text-slate-600">{item.location_text || '-'}</td>
+                              <td className="px-4 py-4">
+                                <div className="flex justify-end gap-2">
+                                  {canWriteInventory ? (
+                                    <>
+                                      <Button variant="outline" size="icon" onClick={() => openEditItemDialog(item)}>
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="outline" size="icon" onClick={() => setSelectedItemId(item.id)}>
+                                        <History className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="destructive" size="icon" onClick={() => void deleteItem(item)}>
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Button variant="outline" size="icon" onClick={() => setSelectedItemId(item.id)}>
+                                      <History className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Movimentacoes</h3>
+                      <p className="text-sm text-slate-500">
+                        {activeItem ? `Historico do item ${activeItem.name}.` : 'Selecione um item para registrar movimentacoes.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {activeItem ? (
+                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <Filter className="h-4 w-4" />
+                        Busca do historico
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <Input
+                          value={movementSearch}
+                          onChange={(event) => setMovementSearch(event.target.value)}
+                          placeholder="Buscar por referencia, nota ou observacao"
+                          className="md:col-span-2"
+                        />
+                        <select
+                          value={movementTypeFilter}
+                          onChange={(event) => setMovementTypeFilter(event.target.value)}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="all">Todos os tipos</option>
+                          {movementTypeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {activeItem && canWriteInventory ? (
+                    <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="movement-type">Tipo</Label>
+                          <select
+                            id="movement-type"
+                            value={movementForm.movementType}
+                            onChange={(event) =>
+                              setMovementForm((current) => ({ ...current, movementType: event.target.value }))
+                            }
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            {movementTypeOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="movement-quantity">Quantidade</Label>
+                          <Input
+                            id="movement-quantity"
+                            type="number"
+                            step="0.001"
+                            value={movementForm.quantity}
+                            onChange={(event) =>
+                              setMovementForm((current) => ({ ...current, quantity: event.target.value }))
+                            }
+                          />
+                          <p className="text-xs text-slate-500">{movementHelpText(movementForm.movementType)}</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="movement-reference-type">Tipo de referencia</Label>
+                          <Input
+                            id="movement-reference-type"
+                            list="movement-reference-types"
+                            value={movementForm.referenceType}
+                            onChange={(event) =>
+                              setMovementForm((current) => ({ ...current, referenceType: event.target.value }))
+                            }
+                            placeholder="Ex.: compra, emprestimo, inventario"
+                          />
+                          <datalist id="movement-reference-types">
+                            {movementReferenceSuggestions.map((option) => (
+                              <option key={option} value={option} />
+                            ))}
+                          </datalist>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="movement-reference-code">Codigo de referencia</Label>
+                          <Input
+                            id="movement-reference-code"
+                            value={movementForm.referenceCode}
+                            onChange={(event) =>
+                              setMovementForm((current) => ({ ...current, referenceCode: event.target.value }))
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label htmlFor="movement-notes">Observacoes</Label>
+                          <Textarea
+                            id="movement-notes"
+                            value={movementForm.notes}
+                            onChange={(event) =>
+                              setMovementForm((current) => ({ ...current, notes: event.target.value }))
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="movement-occurred-at">Data e hora</Label>
+                          <Input
+                            id="movement-occurred-at"
+                            type="datetime-local"
+                            value={movementForm.occurredAt}
+                            onChange={(event) =>
+                              setMovementForm((current) => ({ ...current, occurredAt: event.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <Button onClick={() => void submitMovement()} disabled={savingMovement}>
+                          {savingMovement ? 'Salvando...' : 'Registrar movimentacao'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!activeItem ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Selecione um item para ver o historico.
+                    </div>
+                  ) : loadingItemDetails ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Carregando movimentacoes...
+                    </div>
+                  ) : movements.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Nenhuma movimentacao registrada para este item.
+                    </div>
+                  ) : filteredMovements.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Nenhuma movimentacao corresponde aos filtros atuais.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredMovements.map((movement) => (
+                        <div key={movement.id} className="rounded-xl border border-slate-200 p-4">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="font-medium text-slate-900">{movementTypeLabel(movement.movement_type)}</div>
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                                  {movement.quantity_delta > 0 ? 'Credito' : 'Debito'}
+                                </span>
+                                {buildMovementReferenceSummary(movement) ? (
+                                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                                    {buildMovementReferenceSummary(movement)}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="mt-1 text-sm text-slate-600">
+                                Delta: {formatQuantity(movement.quantity_delta, activeItem.unit_label)} · Saldo: {formatQuantity(movement.resulting_quantity, activeItem.unit_label)}
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                                {movement.reference_type ? (
+                                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                                    Tipo ref.: {movement.reference_type}
+                                  </span>
+                                ) : null}
+                                {movement.reference_code ? (
+                                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                                    Codigo: {movement.reference_code}
+                                  </span>
+                                ) : null}
+                              </div>
+                              {movement.notes ? <p className="mt-2 text-sm text-slate-600">{movement.notes}</p> : null}
+                            </div>
+                            <div className="text-xs text-slate-500">{formatDateTime(movement.occurred_at)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Fotos e anexos</h3>
+                      <p className="text-sm text-slate-500">
+                        Bucket privado com URL assinada. O path sempre comeca pelo ID do item.
+                      </p>
+                    </div>
+                  </div>
+
+                  {activeItem && canWriteInventory ? (
+                    <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="attachment-file">Arquivo</Label>
+                          <Input
+                            key={attachmentInputKey}
+                            id="attachment-file"
+                            type="file"
+                            onChange={(event) =>
+                              setAttachmentForm((current) => ({
+                                ...current,
+                                file: event.target.files?.[0] || null,
+                              }))
+                            }
+                          />
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="attachment-kind">Tipo</Label>
+                            <select
+                              id="attachment-kind"
+                              value={attachmentForm.kind}
+                              onChange={(event) =>
+                                setAttachmentForm((current) => ({ ...current, kind: event.target.value }))
+                              }
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                              {attachmentKindOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="attachment-caption">Legenda</Label>
+                            <Input
+                              id="attachment-caption"
+                              value={attachmentForm.caption}
+                              onChange={(event) =>
+                                setAttachmentForm((current) => ({ ...current, caption: event.target.value }))
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={attachmentForm.isCover}
+                            onChange={(event) =>
+                              setAttachmentForm((current) => ({ ...current, isCover: event.target.checked }))
+                            }
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                          />
+                          Definir como capa do item
+                        </label>
+
+                        <Button onClick={() => void submitAttachment()} disabled={savingAttachment}>
+                          {savingAttachment ? 'Enviando...' : 'Enviar anexo'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!activeItem ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Selecione um item para listar anexos.
+                    </div>
+                  ) : loadingItemDetails ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Carregando anexos...
+                    </div>
+                  ) : attachments.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Nenhum anexo vinculado a este item.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {attachments.map((attachment) => (
+                        <div key={attachment.id} className="rounded-xl border border-slate-200 p-4">
+                          {attachment.kind === 'image' && attachment.signedUrl ? (
+                            <img
+                              src={attachment.signedUrl}
+                              alt={attachment.caption || attachment.file_name}
+                              className="mb-3 h-40 w-full rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="mb-3 flex h-32 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                              <Image className="mr-2 h-5 w-5" />
+                              {attachment.kind}
+                            </div>
+                          )}
+
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-medium text-slate-900">{attachment.file_name}</div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {attachmentKindOptions.find((option) => option.value === attachment.kind)?.label || attachment.kind}
+                                {attachment.is_cover ? ' · Capa' : ''}
+                              </div>
+                              {attachment.caption ? (
+                                <p className="mt-2 text-sm text-slate-600">{attachment.caption}</p>
+                              ) : null}
+                            </div>
+                            <div className="flex gap-2">
+                              {canWriteInventory ? (
+                                <>
+                                  {!attachment.is_cover ? (
+                                    <Button variant="outline" size="sm" onClick={() => void setAttachmentAsCover(attachment)}>
+                                      Definir capa
+                                    </Button>
+                                  ) : null}
+                                  <Button variant="destructive" size="sm" onClick={() => void deleteAttachment(attachment)}>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Remover
+                                  </Button>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {attachment.signedUrl ? (
+                            <a
+                              href={attachment.signedUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 inline-flex text-sm font-medium text-blue-700 hover:text-blue-900"
+                            >
+                              Abrir arquivo
+                            </a>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+};
+
+export default ManageInventory;

@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, Image, Settings, Users } from 'lucide-react';
+import { Boxes, Calendar, Image, Settings, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +15,7 @@ import {
 } from '@/lib/accessControl';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, hasModuleAccess } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,7 +31,7 @@ const Dashboard = () => {
       name: 'Gerenciar Agenda',
       path: '/dashboard/events',
       icon: Calendar,
-      description: 'Cadastre, edite e acompanhe eventos e ocupação dos espaços.',
+      description: 'Cadastre, edite e acompanhe eventos e ocupacao dos espacos.',
       roles: AGENDA_MANAGER_ROLES,
       color: 'text-blue-600',
     },
@@ -44,15 +44,23 @@ const Dashboard = () => {
       color: 'text-purple-600',
     },
     {
-      name: 'Gerenciar Usuários',
+      name: 'Inventario',
+      path: '/dashboard/inventory',
+      icon: Boxes,
+      description: 'Gerencie inventarios, itens, movimentacoes e anexos privados por unidade.',
+      isVisible: hasModuleAccess('inventory', 'read'),
+      color: 'text-emerald-600',
+    },
+    {
+      name: 'Gerenciar Usuarios',
       path: '/dashboard/users',
       icon: Users,
-      description: 'Administre perfis, vínculos institucionais e permissões de acesso.',
+      description: 'Administre perfis, vinculos institucionais e permissoes de acesso.',
       roles: USERS_MANAGER_ROLES,
       color: 'text-pink-600',
     },
     {
-      name: 'Configurações do Site',
+      name: 'Configuracoes do Site',
       path: '/dashboard/settings',
       icon: Settings,
       description:
@@ -60,21 +68,27 @@ const Dashboard = () => {
           ? 'Edite apenas as abas Adm. Paroquial e Contato/Sobre.'
           : user.role === 'member'
             ? 'Visualize todas as unidades e edite apenas as que estiverem vinculadas ao seu perfil.'
-            : 'Edite informações do site e conteúdos das páginas.',
+            : 'Edite informacoes do site e conteudos das paginas.',
       roles: SITE_SETTINGS_ALLOWED_ROLES,
       color: 'text-indigo-600',
     },
   ];
 
-  const accessibleItems = dashboardItems.filter((item) => hasRoleAccess(user.role, item.roles));
+  const accessibleItems = dashboardItems.filter((item) => {
+    if (Object.prototype.hasOwnProperty.call(item, 'isVisible')) {
+      return Boolean(item.isVisible);
+    }
+
+    return hasRoleAccess(user.role, item.roles);
+  });
 
   return (
     <>
       <Helmet>
-        <title>Dashboard - Paróquia de Nossa Senhora da Conceição</title>
+        <title>Dashboard - Paroquia de Nossa Senhora da Conceicao</title>
         <meta
           name="description"
-          content="Painel de controle para membros e administradores da paróquia."
+          content="Painel de controle para membros e administradores da paroquia."
         />
       </Helmet>
 
