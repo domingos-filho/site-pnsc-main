@@ -39,7 +39,7 @@ const Dashboard = () => {
       name: 'Gerenciar Usuários',
       path: '/dashboard/users',
       icon: Users,
-      description: 'Administre membros e suas permissões de acesso.',
+      description: 'Administre membros, vínculos institucionais e permissões de acesso.',
       roles: ['admin'],
       color: 'text-pink-600',
     },
@@ -59,13 +59,16 @@ const Dashboard = () => {
     <>
       <Helmet>
         <title>Dashboard - Paróquia de Nossa Senhora da Conceição</title>
-        <meta name="description" content="Painel de controle para membros e administradores da paróquia." />
+        <meta
+          name="description"
+          content="Painel de controle para membros e administradores da paróquia."
+        />
       </Helmet>
 
-      <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white py-16">
+      <div className="bg-gradient-to-br from-blue-600 to-blue-800 py-16 text-white">
         <div className="container mx-auto px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">Dashboard</h1>
+            <h1 className="mb-4 text-4xl font-bold md:text-5xl">Dashboard</h1>
             <p className="text-xl text-blue-100">
               Bem-vindo, {user.name}! (
               {user.role === 'admin' ? 'Administrador' : user.role === 'secretary' ? 'Secretário' : 'Membro'})
@@ -74,7 +77,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <section className="py-16 bg-gray-50">
+      <section className="bg-gray-50 py-16">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {accessibleItems.map((item, index) => {

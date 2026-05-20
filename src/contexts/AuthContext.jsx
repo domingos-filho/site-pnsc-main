@@ -10,6 +10,30 @@ const ROLE_LEVELS = {
 };
 
 const REQUEST_TIMEOUT_MS = 15000;
+const PROFILE_SELECT = `
+  id,
+  name,
+  role,
+  email,
+  profile_org_units (
+    org_unit_id,
+    membership_role,
+    is_primary,
+    org_units (
+      id,
+      type,
+      slug,
+      name
+    )
+  ),
+  profile_module_access (
+    module_key,
+    can_read,
+    can_write,
+    can_approve,
+    can_admin
+  )
+`;
 
 const withTimeout = (promise, ms, message) => {
   let timeoutId;
@@ -35,13 +59,43 @@ const getFallbackName = (authUser) => {
   return 'Usuário';
 };
 
+const normalizeOrgUnits = (profile) =>
+  (profile?.profile_org_units || []).map((link) => {
+    const orgUnit = Array.isArray(link.org_units) ? link.org_units[0] : link.org_units;
+
+    return {
+      orgUnitId: link.org_unit_id,
+      membershipRole: link.membership_role || '',
+      isPrimary: Boolean(link.is_primary),
+      orgUnit: orgUnit || null,
+    };
+  });
+
+const normalizeModuleAccess = (profile) =>
+  (profile?.profile_module_access || []).map((access) => ({
+    moduleKey: access.module_key,
+    canRead: Boolean(access.can_read),
+    canWrite: Boolean(access.can_write),
+    canApprove: Boolean(access.can_approve),
+    canAdmin: Boolean(access.can_admin),
+  }));
+
 const mapUser = (authUser, profile) => {
   if (!authUser) return null;
+
+  const orgUnits = normalizeOrgUnits(profile);
+  const moduleAccess = normalizeModuleAccess(profile);
+
   return {
     id: authUser.id,
     email: authUser.email,
     name: profile?.name || getFallbackName(authUser),
     role: profile?.role || 'member',
+    orgUnits,
+    moduleAccess,
+    accessibleModules: moduleAccess
+      .filter((access) => access.canRead || access.canWrite || access.canApprove || access.canAdmin)
+      .map((access) => access.moduleKey),
   };
 };
 
@@ -50,11 +104,7 @@ const fetchProfile = async (authUser) => {
 
   try {
     const { data, error } = await withTimeout(
-      supabase
-        .from('profiles')
-        .select('id, name, role, email')
-        .eq('id', authUser.id)
-        .maybeSingle(),
+      supabase.from('profiles').select(PROFILE_SELECT).eq('id', authUser.id).maybeSingle(),
       REQUEST_TIMEOUT_MS,
       'Tempo limite ao carregar perfil.'
     );
@@ -117,17 +167,18 @@ export const AuthProvider = ({ children }) => {
         const { data } = await withTimeout(
           supabase.auth.getSession(),
           REQUEST_TIMEOUT_MS,
-          'Tempo limite ao verificar sessao.'
+          'Tempo limite ao verificar sessão.'
         );
         sessionUser = data?.session?.user || null;
       } catch (error) {
-        console.error('Falha ao carregar sessao', error);
+        console.error('Falha ao carregar sessão', error);
         if (isMounted) {
           setUser(null);
           setLoading(false);
         }
         return;
       }
+
       if (!isMounted) return;
       await syncUserFromSession(sessionUser);
     };
@@ -212,21 +263,39 @@ export const AuthProvider = ({ children }) => {
 
   const refreshProfile = async () => {
     if (!user || !isSupabaseReady) return null;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, name, role, email')
-      .eq('id', user.id)
-      .maybeSingle();
 
+    const authUser = {
+      id: user.id,
+      email: user.email,
+      user_metadata: {
+        name: user.name,
+      },
+    };
+
+    const { profile: data, error } = await fetchProfile(authUser);
     if (error) return null;
 
     if (data) {
-      setUser((prev) =>
-        prev ? { ...prev, name: data.name || prev.name, role: data.role || prev.role } : prev
-      );
+      setUser(mapUser(authUser, data));
     }
 
     return data;
+  };
+
+  const hasModuleAccess = (moduleKey, permission = 'read') => {
+    if (user?.role === 'admin') return true;
+
+    const access = user?.moduleAccess?.find((item) => item.moduleKey === moduleKey);
+    if (!access) return false;
+
+    const permissionMap = {
+      read: access.canRead,
+      write: access.canWrite,
+      approve: access.canApprove,
+      admin: access.canAdmin,
+    };
+
+    return Boolean(permissionMap[permission]);
   };
 
   const roleLevel = ROLE_LEVELS[user?.role] || 0;
@@ -237,6 +306,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     refreshProfile,
+    hasModuleAccess,
     isAdmin: user?.role === 'admin',
     isSecretary: user?.role === 'secretary',
     isManager: user?.role === 'admin' || user?.role === 'secretary',
