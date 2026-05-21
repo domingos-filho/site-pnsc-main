@@ -172,6 +172,8 @@ const parseNumberOrZero = (value) => {
   return parsed === null ? 0 : parsed;
 };
 
+const normalizeSearch = (value) => String(value || '').trim().toLocaleLowerCase('pt-BR');
+
 const formatQuantity = (value, unitLabel) => {
   const numeric = Number(value || 0);
   const formatted = Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(3).replace(/\.?0+$/, '');
@@ -191,8 +193,6 @@ const formatDateTime = (value) => {
   }
 };
 
-const normalizeSearch = (value) => String(value || '').trim().toLocaleLowerCase('pt-BR');
-
 const attachmentKindLabel = (kind) =>
   attachmentKindOptions.find((option) => option.value === kind)?.label || kind;
 
@@ -203,33 +203,15 @@ const buildMovementReferenceSummary = (movement) => {
   const referenceType = trimOrNull(movement.reference_type);
   const referenceCode = trimOrNull(movement.reference_code);
 
-  if (referenceType && referenceCode) {
-    return `${referenceType} · ${referenceCode}`;
-  }
-
+  if (referenceType && referenceCode) return `${referenceType} · ${referenceCode}`;
   if (referenceType) return referenceType;
   if (referenceCode) return referenceCode;
   return null;
 };
 
-const triggerBrowserDownload = (url, fileName) => {
-  if (!url) return;
-
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName || 'anexo';
-  link.target = '_blank';
-  link.rel = 'noreferrer';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
 const buildMovementDelta = (movementType, quantityInput) => {
   const parsed = Number(quantityInput);
-  if (!Number.isFinite(parsed) || parsed === 0) {
-    return null;
-  }
+  if (!Number.isFinite(parsed) || parsed === 0) return null;
 
   switch (movementType) {
     case 'entry':
@@ -254,6 +236,40 @@ const movementHelpText = (movementType) => {
   return 'Informe um valor positivo. O sistema aplica o sinal conforme o tipo de movimentacao.';
 };
 
+const isInventoryWritePolicyError = (error) =>
+  error?.code === '42501' && /row-level security policy/i.test(error?.message || '');
+
+const safeDownloadSegment = (value, fallback) => {
+  const normalized = String(value || '')
+    .normalize('NFKD')
+    .replace(/[^\w.-]+/g, '_')
+    .replace(/_{2,}/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  return normalized || fallback;
+};
+
+const buildAttachmentDownloadName = (attachment, item, inventory) => {
+  const inventorySegment = safeDownloadSegment(inventory?.slug || inventory?.name, 'inventario');
+  const itemSegment = safeDownloadSegment(item?.sku || item?.name, 'item');
+  const originalName = safeDownloadSegment(attachment?.file_name, 'anexo');
+
+  return `${inventorySegment}--${itemSegment}--${originalName}`;
+};
+
+const triggerBrowserDownload = (url, fileName) => {
+  if (!url) return;
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'anexo';
+  link.target = '_blank';
+  link.rel = 'noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 const InventoryFormDialog = ({
   open,
   onOpenChange,
@@ -269,7 +285,7 @@ const InventoryFormDialog = ({
       <DialogHeader>
         <DialogTitle>{mode === 'create' ? 'Novo inventario' : 'Editar inventario'}</DialogTitle>
         <DialogDescription>
-          Cada inventario fica vinculado a uma unidade organizacional e segue as permissões do modulo.
+          Cada inventario fica vinculado a uma unidade organizacional e segue as permissoes do modulo.
         </DialogDescription>
       </DialogHeader>
 
@@ -605,28 +621,34 @@ const ManageInventory = () => {
   const [loadingInventories, setLoadingInventories] = useState(true);
   const [loadingItems, setLoadingItems] = useState(false);
   const [loadingItemDetails, setLoadingItemDetails] = useState(false);
+
   const [inventoryDialogOpen, setInventoryDialogOpen] = useState(false);
   const [inventoryDialogMode, setInventoryDialogMode] = useState('create');
   const [inventoryForm, setInventoryForm] = useState(createEmptyInventoryForm());
+  const [editingInventoryId, setEditingInventoryId] = useState(null);
+  const [savingInventory, setSavingInventory] = useState(false);
+
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [itemDialogMode, setItemDialogMode] = useState('create');
   const [itemForm, setItemForm] = useState(createEmptyItemForm());
-  const [savingInventory, setSavingInventory] = useState(false);
+  const [editingItemId, setEditingItemId] = useState(null);
   const [savingItem, setSavingItem] = useState(false);
+
   const [savingMovement, setSavingMovement] = useState(false);
+  const [movementForm, setMovementForm] = useState(createEmptyMovementForm());
+
   const [savingAttachment, setSavingAttachment] = useState(false);
+  const [attachmentForm, setAttachmentForm] = useState(createEmptyAttachmentForm());
+  const [attachmentInputKey, setAttachmentInputKey] = useState(0);
+
   const [inventorySearch, setInventorySearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [itemTypeFilter, setItemTypeFilter] = useState('all');
   const [itemStatusFilter, setItemStatusFilter] = useState('all');
   const [movementSearch, setMovementSearch] = useState('');
   const [movementTypeFilter, setMovementTypeFilter] = useState('all');
-  const [movementForm, setMovementForm] = useState(createEmptyMovementForm());
   const [attachmentKindFilter, setAttachmentKindFilter] = useState('all');
-  const [attachmentForm, setAttachmentForm] = useState(createEmptyAttachmentForm());
-  const [attachmentInputKey, setAttachmentInputKey] = useState(0);
-  const [editingInventoryId, setEditingInventoryId] = useState(null);
-  const [editingItemId, setEditingItemId] = useState(null);
+
   const [selectedInventoryId, setSelectedInventoryId] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState(null);
 
@@ -660,13 +682,7 @@ const ManageInventory = () => {
     if (!query) return inventories;
 
     return inventories.filter((inventory) =>
-      [
-        inventory.name,
-        inventory.slug,
-        inventory.description,
-        inventory.orgUnit?.name,
-        inventory.orgUnit?.type,
-      ]
+      [inventory.name, inventory.slug, inventory.description, inventory.orgUnit?.name, inventory.orgUnit?.type]
         .filter(Boolean)
         .some((value) => normalizeSearch(value).includes(query))
     );
@@ -696,13 +712,13 @@ const ManageInventory = () => {
         Number(item.current_quantity || 0) <= Number(item.minimum_quantity || 0);
       const matchesStatus =
         itemStatusFilter === 'all' ||
-        (itemStatusFilter === 'low_stock' && isLowStock) ||
+        (itemStatusFilter === 'active' && item.is_active) ||
         (itemStatusFilter === 'inactive' && !item.is_active) ||
-        (itemStatusFilter === 'active' && item.is_active);
+        (itemStatusFilter === 'low_stock' && isLowStock);
 
       return matchesQuery && matchesType && matchesStatus;
     });
-  }, [items, itemSearch, itemStatusFilter, itemTypeFilter]);
+  }, [itemSearch, itemStatusFilter, itemTypeFilter, items]);
 
   const filteredMovements = useMemo(() => {
     const query = normalizeSearch(movementSearch);
@@ -742,6 +758,40 @@ const ManageInventory = () => {
   }, [filteredAttachments]);
 
   const loadAvailableOrgUnits = async () => {
+    const shouldRespectUnitModuleSettings = user?.role === 'admin' || user?.role === 'secretary';
+
+    if (shouldRespectUnitModuleSettings) {
+      const { data: enabledSettings, error: enabledSettingsError } = await supabase
+        .from('org_unit_module_settings')
+        .select('org_unit_id')
+        .eq('module_key', 'inventory')
+        .eq('is_enabled', true);
+
+      if (enabledSettingsError) throw enabledSettingsError;
+
+      const enabledOrgUnitIds = new Set((enabledSettings || []).map((row) => row.org_unit_id));
+
+      if (user?.role === 'admin') {
+        if (enabledOrgUnitIds.size === 0) return [];
+
+        const { data, error } = await supabase
+          .from('org_units')
+          .select('id, type, slug, name')
+          .eq('is_active', true)
+          .in('id', Array.from(enabledOrgUnitIds))
+          .order('type', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
+      }
+
+      return (user?.orgUnits || [])
+        .map((link) => link.orgUnit)
+        .filter((orgUnit) => orgUnit && enabledOrgUnitIds.has(orgUnit.id))
+        .sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`, 'pt-BR'));
+    }
+
     if (user?.role === 'admin') {
       const { data, error } = await supabase
         .from('org_units')
@@ -750,10 +800,7 @@ const ManageInventory = () => {
         .order('type', { ascending: true })
         .order('name', { ascending: true });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return data || [];
     }
 
@@ -795,17 +842,14 @@ const ManageInventory = () => {
         loadAvailableOrgUnits(),
       ]);
 
-      if (inventoriesResponse.error) {
-        throw inventoriesResponse.error;
-      }
+      if (inventoriesResponse.error) throw inventoriesResponse.error;
 
-      const normalizedInventories = (inventoriesResponse.data || []).map(normalizeInventoryRow);
-      setInventories(normalizedInventories);
+      setInventories((inventoriesResponse.data || []).map(normalizeInventoryRow));
       setAvailableOrgUnits(orgUnitsResponse);
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível carregar os inventários.'),
+        description: formatInventoryError(error, 'Nao foi possivel carregar os inventarios.'),
         variant: 'destructive',
       });
     } finally {
@@ -827,15 +871,12 @@ const ManageInventory = () => {
         .eq('inventory_id', inventoryId)
         .order('name', { ascending: true });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       setItems(data || []);
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível carregar os itens do inventário.'),
+        description: formatInventoryError(error, 'Nao foi possivel carregar os itens do inventario.'),
         variant: 'destructive',
       });
       setItems([]);
@@ -868,13 +909,8 @@ const ManageInventory = () => {
           .order('created_at', { ascending: true }),
       ]);
 
-      if (movementResponse.error) {
-        throw movementResponse.error;
-      }
-
-      if (attachmentResponse.error) {
-        throw attachmentResponse.error;
-      }
+      if (movementResponse.error) throw movementResponse.error;
+      if (attachmentResponse.error) throw attachmentResponse.error;
 
       const attachmentsWithUrls = await Promise.all(
         (attachmentResponse.data || []).map(async (attachment) => {
@@ -892,7 +928,7 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível carregar movimentos e anexos do item.'),
+        description: formatInventoryError(error, 'Nao foi possivel carregar movimentos e anexos do item.'),
         variant: 'destructive',
       });
       setMovements([]);
@@ -911,14 +947,14 @@ const ManageInventory = () => {
     if (!isSupabaseReady) {
       toast({
         title: 'Erro',
-        description: 'Supabase não configurado para o módulo de inventário.',
+        description: 'Supabase nao configurado para o modulo de inventario.',
         variant: 'destructive',
       });
       return;
     }
 
     void loadInventories();
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [navigate, toast, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (loadingInventories) return;
@@ -973,9 +1009,7 @@ const ManageInventory = () => {
   }, [items, selectedItemId]);
 
   useEffect(() => {
-    if (!filteredItems.length) {
-      return;
-    }
+    if (!filteredItems.length) return;
 
     if (selectedItemId && filteredItems.some((item) => item.id === selectedItemId)) {
       return;
@@ -1019,7 +1053,7 @@ const ManageInventory = () => {
     if (!inventoryForm.orgUnitId || !inventoryForm.name.trim()) {
       toast({
         title: 'Erro',
-        description: 'Informe a unidade e o nome do inventário.',
+        description: 'Informe a unidade e o nome do inventario.',
         variant: 'destructive',
       });
       return;
@@ -1037,6 +1071,7 @@ const ManageInventory = () => {
       };
 
       let savedInventoryId = editingInventoryId;
+
       if (inventoryDialogMode === 'create') {
         const { data, error } = await supabase.from('inventories').insert(payload).select('id').single();
         if (error) throw error;
@@ -1048,18 +1083,24 @@ const ManageInventory = () => {
 
       await loadInventories();
       setInventoryDialogOpen(false);
+
       if (savedInventoryId) {
         setSelectedInventoryId(savedInventoryId);
-        navigate(`/dashboard/inventory/${savedInventoryId}`);
+        if (isDedicatedInventoryView) {
+          navigate(`/dashboard/inventory/${savedInventoryId}`);
+        }
       }
+
       toast({
         title: 'Sucesso!',
-        description: `Inventário ${inventoryDialogMode === 'create' ? 'criado' : 'atualizado'}.`,
+        description: `Inventario ${inventoryDialogMode === 'create' ? 'criado' : 'atualizado'}.`,
       });
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível salvar o inventário.'),
+        description: isInventoryWritePolicyError(error)
+          ? 'Seu usuario nao pode criar inventario nesta unidade. Verifique se o modulo inventory esta habilitado em org_unit_module_settings e se voce tem vinculo com permissao de escrita nela.'
+          : formatInventoryError(error, 'Nao foi possivel salvar o inventario.'),
         variant: 'destructive',
       });
     } finally {
@@ -1068,7 +1109,7 @@ const ManageInventory = () => {
   };
 
   const deleteInventory = async (inventory) => {
-    if (!window.confirm(`Excluir o inventário "${inventory.name}"?`)) {
+    if (!window.confirm(`Excluir o inventario "${inventory.name}"?`)) {
       return;
     }
 
@@ -1077,17 +1118,19 @@ const ManageInventory = () => {
       if (error) throw error;
 
       await loadInventories();
+
       if (selectedInventoryId === inventory.id) {
         setSelectedInventoryId(null);
         navigate('/dashboard/inventory');
       }
-      toast({ title: 'Sucesso!', description: 'Inventário excluído.' });
+
+      toast({ title: 'Sucesso!', description: 'Inventario excluido.' });
     } catch (error) {
       toast({
         title: 'Erro',
         description: formatInventoryError(
           error,
-          'Não foi possível excluir o inventário. Se houver itens vinculados, remova-os antes.'
+          'Nao foi possivel excluir o inventario. Se houver itens vinculados, remova-os antes.'
         ),
         variant: 'destructive',
       });
@@ -1158,6 +1201,7 @@ const ManageInventory = () => {
       };
 
       let savedItemId = editingItemId;
+
       if (itemDialogMode === 'create') {
         const { data, error } = await supabase.from('inventory_items').insert(payload).select('id').single();
         if (error) throw error;
@@ -1169,9 +1213,11 @@ const ManageInventory = () => {
 
       await loadItems(selectedInventoryId);
       setItemDialogOpen(false);
+
       if (savedItemId) {
         setSelectedItemId(savedItemId);
       }
+
       toast({
         title: 'Sucesso!',
         description: `Item ${itemDialogMode === 'create' ? 'criado' : 'atualizado'}.`,
@@ -1179,7 +1225,7 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível salvar o item.'),
+        description: formatInventoryError(error, 'Nao foi possivel salvar o item.'),
         variant: 'destructive',
       });
     } finally {
@@ -1197,16 +1243,18 @@ const ManageInventory = () => {
       if (error) throw error;
 
       await loadItems(selectedInventoryId);
+
       if (selectedItemId === item.id) {
         setSelectedItemId(null);
       }
-      toast({ title: 'Sucesso!', description: 'Item excluído.' });
+
+      toast({ title: 'Sucesso!', description: 'Item excluido.' });
     } catch (error) {
       toast({
         title: 'Erro',
         description: formatInventoryError(
           error,
-          'Não foi possível excluir o item. Se houver histórico de movimentações, o item deve permanecer.'
+          'Nao foi possivel excluir o item. Se houver historico de movimentacoes, o item deve permanecer.'
         ),
         variant: 'destructive',
       });
@@ -1214,15 +1262,13 @@ const ManageInventory = () => {
   };
 
   const submitMovement = async () => {
-    if (!activeItem) {
-      return;
-    }
+    if (!activeItem) return;
 
     const quantityDelta = buildMovementDelta(movementForm.movementType, movementForm.quantity);
     if (!quantityDelta) {
       toast({
         title: 'Erro',
-        description: 'Informe uma quantidade válida para a movimentação.',
+        description: 'Informe uma quantidade valida para a movimentacao.',
         variant: 'destructive',
       });
       return;
@@ -1244,11 +1290,11 @@ const ManageInventory = () => {
 
       await Promise.all([loadItems(selectedInventoryId), loadItemDetails(activeItem.id)]);
       setMovementForm(createEmptyMovementForm());
-      toast({ title: 'Sucesso!', description: 'Movimentação registrada.' });
+      toast({ title: 'Sucesso!', description: 'Movimentacao registrada.' });
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível registrar a movimentação.'),
+        description: formatInventoryError(error, 'Nao foi possivel registrar a movimentacao.'),
         variant: 'destructive',
       });
     } finally {
@@ -1265,9 +1311,7 @@ const ManageInventory = () => {
       .eq('inventory_item_id', activeItem.id)
       .eq('is_cover', true);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
   };
 
   const submitAttachment = async () => {
@@ -1321,7 +1365,7 @@ const ManageInventory = () => {
 
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível enviar o anexo.'),
+        description: formatInventoryError(error, 'Nao foi possivel enviar o anexo.'),
         variant: 'destructive',
       });
     } finally {
@@ -1334,6 +1378,7 @@ const ManageInventory = () => {
 
     try {
       await clearExistingCoverIfNeeded(true);
+
       const { error } = await supabase
         .from('inventory_item_attachments')
         .update({ is_cover: true })
@@ -1346,7 +1391,7 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível atualizar a capa do item.'),
+        description: formatInventoryError(error, 'Nao foi possivel atualizar a capa do item.'),
         variant: 'destructive',
       });
     }
@@ -1366,7 +1411,7 @@ const ManageInventory = () => {
       } catch {
         toast({
           title: 'Aviso',
-          description: 'O registro foi removido, mas não foi possível excluir o arquivo do Storage.',
+          description: 'O registro foi removido, mas nao foi possivel excluir o arquivo do Storage.',
         });
       }
 
@@ -1375,7 +1420,7 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível remover o anexo.'),
+        description: formatInventoryError(error, 'Nao foi possivel remover o anexo.'),
         variant: 'destructive',
       });
     }
@@ -1384,11 +1429,14 @@ const ManageInventory = () => {
   const downloadAttachment = async (attachment) => {
     try {
       const signedUrl = attachment.signedUrl || (await getInventorySignedUrl(attachment.bucket_path));
-      triggerBrowserDownload(signedUrl, attachment.file_name);
+      triggerBrowserDownload(
+        signedUrl,
+        buildAttachmentDownloadName(attachment, activeItem, activeInventory)
+      );
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Não foi possível gerar o download do anexo.'),
+        description: formatInventoryError(error, 'Nao foi possivel gerar o download do anexo.'),
         variant: 'destructive',
       });
     }
@@ -1396,8 +1444,6 @@ const ManageInventory = () => {
 
   const downloadAttachmentGroup = async (attachmentGroup = []) => {
     for (const attachment of attachmentGroup) {
-      // Small delay reduces the chance of the browser collapsing multiple downloads.
-      // This is not a zip export; it triggers one download per file in the group.
       await downloadAttachment(attachment);
       await new Promise((resolve) => window.setTimeout(resolve, 150));
     }
@@ -1405,7 +1451,9 @@ const ManageInventory = () => {
 
   const handleInventorySelection = (inventoryId) => {
     setSelectedInventoryId(inventoryId);
-    navigate(`/dashboard/inventory/${inventoryId}`);
+    if (isDedicatedInventoryView) {
+      navigate(`/dashboard/inventory/${inventoryId}`);
+    }
   };
 
   if (!user) return null;
@@ -1413,10 +1461,10 @@ const ManageInventory = () => {
   return (
     <>
       <Helmet>
-        <title>Inventario - Paróquia de Nossa Senhora da Conceição</title>
+        <title>Inventario - Paroquia de Nossa Senhora da Conceicao</title>
         <meta
           name="description"
-          content="Controle de inventários, itens, movimentações e anexos por unidade institucional."
+          content="Controle de inventarios, itens, movimentacoes e anexos por unidade institucional."
         />
       </Helmet>
 
@@ -1457,7 +1505,11 @@ const ManageInventory = () => {
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Button variant="outline" className="border-white/20 bg-white/10 text-white hover:bg-white/20" onClick={() => void loadInventories()}>
+                <Button
+                  variant="outline"
+                  className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  onClick={() => void loadInventories()}
+                >
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Atualizar
                 </Button>
@@ -1514,123 +1566,121 @@ const ManageInventory = () => {
 
           <div className={`grid gap-6 ${isDedicatedInventoryView ? '' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}>
             {!isDedicatedInventoryView ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4">
                   <h2 className="text-lg font-semibold text-slate-900">Inventarios</h2>
                   <p className="text-sm text-slate-500">Selecione a unidade que deseja operar.</p>
                 </div>
-              </div>
 
-              <div className="mb-4">
-                <Input
-                  value={inventorySearch}
-                  onChange={(event) => setInventorySearch(event.target.value)}
-                  placeholder="Buscar por inventario, unidade ou slug"
-                />
-              </div>
+                <div className="mb-4">
+                  <Input
+                    value={inventorySearch}
+                    onChange={(event) => setInventorySearch(event.target.value)}
+                    placeholder="Buscar por inventario, unidade ou slug"
+                  />
+                </div>
 
-              {loadingInventories ? (
-                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                  Carregando inventarios...
-                </div>
-              ) : inventories.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                  Nenhum inventario disponivel. Crie o primeiro quando o modulo estiver habilitado para a unidade.
-                </div>
-              ) : filteredInventories.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                  Nenhum inventario encontrado para o filtro informado.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredInventories.map((inventory) => {
-                    const isActive = inventory.id === selectedInventoryId;
-                    return (
-                      <button
-                        key={inventory.id}
-                        type="button"
-                        onClick={() => handleInventorySelection(inventory.id)}
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
-                          isActive
-                            ? 'border-blue-300 bg-blue-50 shadow-sm'
-                            : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-slate-900">{inventory.name}</div>
-                            <div className="mt-1 text-xs uppercase tracking-wide text-slate-500">
-                              {orgUnitTypeLabels[inventory.orgUnit?.type] || inventory.orgUnit?.type} ·{' '}
-                              {inventory.orgUnit?.name || 'Unidade'}
+                {loadingInventories ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                    Carregando inventarios...
+                  </div>
+                ) : inventories.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                    Nenhum inventario disponivel. Crie o primeiro quando o modulo estiver habilitado para a unidade.
+                  </div>
+                ) : filteredInventories.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                    Nenhum inventario encontrado para o filtro informado.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredInventories.map((inventory) => {
+                      const isActive = inventory.id === selectedInventoryId;
+                      return (
+                        <button
+                          key={inventory.id}
+                          type="button"
+                          onClick={() => handleInventorySelection(inventory.id)}
+                          className={`w-full rounded-2xl border p-4 text-left transition ${
+                            isActive
+                              ? 'border-blue-300 bg-blue-50 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900">{inventory.name}</div>
+                              <div className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                                {orgUnitTypeLabels[inventory.orgUnit?.type] || inventory.orgUnit?.type} ·{' '}
+                                {inventory.orgUnit?.name || 'Unidade'}
+                              </div>
+                              {inventory.description ? (
+                                <p className="mt-2 line-clamp-2 text-sm text-slate-600">{inventory.description}</p>
+                              ) : null}
                             </div>
-                            {inventory.description ? (
-                              <p className="mt-2 line-clamp-2 text-sm text-slate-600">{inventory.description}</p>
-                            ) : null}
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                                inventory.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {inventory.is_active ? 'Ativo' : 'Inativo'}
+                            </span>
                           </div>
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                              inventory.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                            }`}
-                          >
-                            {inventory.is_active ? 'Ativo' : 'Inativo'}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ) : null}
 
             <div className="space-y-6">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 {activeInventory ? (
-                  <>
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
-                          {orgUnitTypeLabels[activeInventory.orgUnit?.type] || activeInventory.orgUnit?.type}
-                        </div>
-                        <h2 className="mt-2 text-2xl font-bold text-slate-900">{activeInventory.name}</h2>
-                        <p className="mt-2 text-sm text-slate-600">
-                          {activeInventory.description || 'Sem descricao cadastrada.'}
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                          <span className="rounded-full bg-slate-100 px-3 py-1">Slug: {activeInventory.slug}</span>
-                          <span className="rounded-full bg-slate-100 px-3 py-1">
-                            Tipo: {inventoryTypeOptions.find((option) => option.value === activeInventory.inventory_type)?.label || activeInventory.inventory_type}
-                          </span>
-                          <span className="rounded-full bg-slate-100 px-3 py-1">
-                            Unidade: {activeInventory.orgUnit?.name || '-'}
-                          </span>
-                        </div>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                        {orgUnitTypeLabels[activeInventory.orgUnit?.type] || activeInventory.orgUnit?.type}
                       </div>
-
-                      {(canWriteInventory || canAdminInventory) && (
-                        <div className="flex flex-wrap gap-2">
-                          {!isDedicatedInventoryView ? (
-                            <Button variant="outline" onClick={() => navigate(`/dashboard/inventory/${activeInventory.id}`)}>
-                              Foco neste inventario
-                            </Button>
-                          ) : null}
-                          {canWriteInventory ? (
-                            <Button variant="outline" onClick={() => openEditInventoryDialog(activeInventory)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Editar
-                            </Button>
-                          ) : null}
-                          {canAdminInventory ? (
-                            <Button variant="destructive" onClick={() => void deleteInventory(activeInventory)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir
-                            </Button>
-                          ) : null}
-                        </div>
-                      )}
+                      <h2 className="mt-2 text-2xl font-bold text-slate-900">{activeInventory.name}</h2>
+                      <p className="mt-2 text-sm text-slate-600">
+                        {activeInventory.description || 'Sem descricao cadastrada.'}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span className="rounded-full bg-slate-100 px-3 py-1">Slug: {activeInventory.slug}</span>
+                        <span className="rounded-full bg-slate-100 px-3 py-1">
+                          Tipo:{' '}
+                          {inventoryTypeOptions.find((option) => option.value === activeInventory.inventory_type)?.label ||
+                            activeInventory.inventory_type}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-3 py-1">
+                          Unidade: {activeInventory.orgUnit?.name || '-'}
+                        </span>
+                      </div>
                     </div>
-                  </>
+
+                    {(canWriteInventory || canAdminInventory) && (
+                      <div className="flex flex-wrap gap-2">
+                        {!isDedicatedInventoryView ? (
+                          <Button variant="outline" onClick={() => navigate(`/dashboard/inventory/${activeInventory.id}`)}>
+                            Foco neste inventario
+                          </Button>
+                        ) : null}
+                        {canWriteInventory ? (
+                          <Button variant="outline" onClick={() => openEditInventoryDialog(activeInventory)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </Button>
+                        ) : null}
+                        {canAdminInventory ? (
+                          <Button variant="destructive" onClick={() => void deleteInventory(activeInventory)}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Excluir
+                          </Button>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
                     Selecione um inventario para gerenciar os itens.
@@ -1642,7 +1692,9 @@ const ManageInventory = () => {
                 <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">Itens</h3>
-                    <p className="text-sm text-slate-500">Cadastro de patrimonio, consumo e documentos vinculados ao inventario.</p>
+                    <p className="text-sm text-slate-500">
+                      Cadastro de patrimonio, consumo e documentos vinculados ao inventario.
+                    </p>
                   </div>
                   {activeInventory && canWriteInventory ? (
                     <Button onClick={openCreateItemDialog}>
@@ -1740,7 +1792,8 @@ const ManageInventory = () => {
                                 >
                                   <div className="font-medium text-slate-900">{item.name}</div>
                                   <div className="text-xs text-slate-500">
-                                    {item.sku || 'Sem SKU'} {item.serial_number ? `· Serial ${item.serial_number}` : ''}
+                                    {item.sku || 'Sem SKU'}
+                                    {item.serial_number ? ` · Serial ${item.serial_number}` : ''}
                                   </div>
                                 </button>
                               </td>
@@ -1788,13 +1841,11 @@ const ManageInventory = () => {
 
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Movimentacoes</h3>
-                      <p className="text-sm text-slate-500">
-                        {activeItem ? `Historico do item ${activeItem.name}.` : 'Selecione um item para registrar movimentacoes.'}
-                      </p>
-                    </div>
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-slate-900">Movimentacoes</h3>
+                    <p className="text-sm text-slate-500">
+                      {activeItem ? `Historico do item ${activeItem.name}.` : 'Selecione um item para registrar movimentacoes.'}
+                    </p>
                   </div>
 
                   {activeItem ? (
@@ -1956,7 +2007,8 @@ const ManageInventory = () => {
                                 ) : null}
                               </div>
                               <div className="mt-1 text-sm text-slate-600">
-                                Delta: {formatQuantity(movement.quantity_delta, activeItem.unit_label)} · Saldo: {formatQuantity(movement.resulting_quantity, activeItem.unit_label)}
+                                Delta: {formatQuantity(movement.quantity_delta, activeItem.unit_label)} · Saldo:{' '}
+                                {formatQuantity(movement.resulting_quantity, activeItem.unit_label)}
                               </div>
                               <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
                                 {movement.reference_type ? (
@@ -1981,14 +2033,38 @@ const ManageInventory = () => {
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Fotos e anexos</h3>
-                      <p className="text-sm text-slate-500">
-                        Bucket privado com URL assinada. O path sempre comeca pelo ID do item.
-                      </p>
-                    </div>
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-slate-900">Fotos e anexos</h3>
+                    <p className="text-sm text-slate-500">
+                      Bucket privado com URL assinada. O path sempre comeca pelo ID do item.
+                    </p>
                   </div>
+
+                  {activeItem ? (
+                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <Filter className="h-4 w-4" />
+                        Organizacao dos anexos
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <select
+                          value={attachmentKindFilter}
+                          onChange={(event) => setAttachmentKindFilter(event.target.value)}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="all">Todos os tipos</option>
+                          {attachmentKindOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center text-sm text-slate-500">
+                          {filteredAttachments.length} anexo(s) visivel(is) para o item selecionado.
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {activeItem && canWriteInventory ? (
                     <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -2070,61 +2146,93 @@ const ManageInventory = () => {
                     <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
                       Nenhum anexo vinculado a este item.
                     </div>
+                  ) : filteredAttachments.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Nenhum anexo corresponde ao filtro atual.
+                    </div>
                   ) : (
                     <div className="space-y-4">
-                      {attachments.map((attachment) => (
-                        <div key={attachment.id} className="rounded-xl border border-slate-200 p-4">
-                          {attachment.kind === 'image' && attachment.signedUrl ? (
-                            <img
-                              src={attachment.signedUrl}
-                              alt={attachment.caption || attachment.file_name}
-                              className="mb-3 h-40 w-full rounded-lg object-cover"
-                            />
-                          ) : (
-                            <div className="mb-3 flex h-32 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                              <Image className="mr-2 h-5 w-5" />
-                              {attachment.kind}
+                      {Object.entries(groupedAttachments).map(([kind, attachmentGroup]) => (
+                        <div key={kind} className="space-y-3">
+                          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <div className="text-sm font-semibold text-slate-900">{attachmentKindLabel(kind)}</div>
+                              <div className="text-xs text-slate-500">{attachmentGroup.length} arquivo(s) neste grupo.</div>
                             </div>
-                          )}
-
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="font-medium text-slate-900">{attachment.file_name}</div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {attachmentKindOptions.find((option) => option.value === attachment.kind)?.label || attachment.kind}
-                                {attachment.is_cover ? ' · Capa' : ''}
-                              </div>
-                              {attachment.caption ? (
-                                <p className="mt-2 text-sm text-slate-600">{attachment.caption}</p>
-                              ) : null}
-                            </div>
-                            <div className="flex gap-2">
-                              {canWriteInventory ? (
-                                <>
-                                  {!attachment.is_cover ? (
-                                    <Button variant="outline" size="sm" onClick={() => void setAttachmentAsCover(attachment)}>
-                                      Definir capa
-                                    </Button>
-                                  ) : null}
-                                  <Button variant="destructive" size="sm" onClick={() => void deleteAttachment(attachment)}>
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Remover
-                                  </Button>
-                                </>
-                              ) : null}
-                            </div>
+                            <Button variant="outline" size="sm" onClick={() => void downloadAttachmentGroup(attachmentGroup)}>
+                              <Download className="mr-2 h-4 w-4" />
+                              Baixar grupo
+                            </Button>
                           </div>
 
-                          {attachment.signedUrl ? (
-                            <a
-                              href={attachment.signedUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-3 inline-flex text-sm font-medium text-blue-700 hover:text-blue-900"
-                            >
-                              Abrir arquivo
-                            </a>
-                          ) : null}
+                          {attachmentGroup.map((attachment) => (
+                            <div key={attachment.id} className="rounded-xl border border-slate-200 p-4">
+                              {attachment.kind === 'image' && attachment.signedUrl ? (
+                                <img
+                                  src={attachment.signedUrl}
+                                  alt={attachment.caption || attachment.file_name}
+                                  className="mb-3 h-40 w-full rounded-lg object-cover"
+                                />
+                              ) : (
+                                <div className="mb-3 flex h-32 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                                  <Image className="mr-2 h-5 w-5" />
+                                  {attachment.kind}
+                                </div>
+                              )}
+
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="font-medium text-slate-900">{attachment.file_name}</div>
+                                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                                      {attachmentKindLabel(attachment.kind)}
+                                    </span>
+                                    {attachment.is_cover ? (
+                                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
+                                        Capa
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  {attachment.caption ? (
+                                    <p className="mt-2 text-sm text-slate-600">{attachment.caption}</p>
+                                  ) : null}
+                                  <div className="mt-2 break-all text-xs text-slate-500">
+                                    Path: {attachment.bucket_path}
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button variant="outline" size="sm" onClick={() => void downloadAttachment(attachment)}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Baixar
+                                  </Button>
+                                  {canWriteInventory ? (
+                                    <>
+                                      {!attachment.is_cover ? (
+                                        <Button variant="outline" size="sm" onClick={() => void setAttachmentAsCover(attachment)}>
+                                          Definir capa
+                                        </Button>
+                                      ) : null}
+                                      <Button variant="destructive" size="sm" onClick={() => void deleteAttachment(attachment)}>
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Remover
+                                      </Button>
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              {attachment.signedUrl ? (
+                                <a
+                                  href={attachment.signedUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-3 inline-flex text-sm font-medium text-blue-700 hover:text-blue-900"
+                                >
+                                  Abrir arquivo
+                                </a>
+                              ) : null}
+                            </div>
+                          ))}
                         </div>
                       ))}
                     </div>
