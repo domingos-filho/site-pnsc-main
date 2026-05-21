@@ -389,220 +389,225 @@ const ItemFormDialog = ({
   saving,
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="max-w-4xl">
-      <DialogHeader>
-        <DialogTitle>{mode === 'create' ? 'Novo item' : 'Editar item'}</DialogTitle>
-        <DialogDescription>
-          O saldo atual e controlado pelas movimentacoes. Ajustes de quantidade devem ser feitos no historico.
-        </DialogDescription>
-      </DialogHeader>
+    <DialogContent className="w-[calc(100vw-1rem)] max-w-5xl gap-0 overflow-hidden p-0 sm:w-full">
+      <div className="flex max-h-[90vh] flex-col">
+        <DialogHeader className="shrink-0 border-b px-4 pb-4 pt-5 pr-14 sm:px-6 sm:pb-5 sm:pt-6 sm:pr-16">
+          <DialogTitle>{mode === 'create' ? 'Novo item' : 'Editar item'}</DialogTitle>
+          <DialogDescription>
+            O saldo atual e controlado pelas movimentacoes. Ajustes de quantidade devem ser feitos no historico.
+          </DialogDescription>
+        </DialogHeader>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="item-name">Nome</Label>
-          <Input
-            id="item-name"
-            value={formState.name}
-            onChange={(event) => setFormState((current) => ({ ...current, name: event.target.value }))}
-          />
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="item-name">Nome</Label>
+              <Input
+                id="item-name"
+                value={formState.name}
+                onChange={(event) => setFormState((current) => ({ ...current, name: event.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="item-sku">SKU</Label>
+              <Input
+                id="item-sku"
+                value={formState.sku}
+                onChange={(event) => setFormState((current) => ({ ...current, sku: event.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="item-description">Descricao</Label>
+              <Textarea
+                id="item-description"
+                className="min-h-[112px]"
+                value={formState.description}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, description: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="item-type">Tipo</Label>
+              <select
+                id="item-type"
+                value={formState.itemType}
+                onChange={(event) => setFormState((current) => ({ ...current, itemType: event.target.value }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                {itemTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tracking-mode">Rastreamento</Label>
+              <select
+                id="tracking-mode"
+                value={formState.trackingMode}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, trackingMode: event.target.value }))
+                }
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                {trackingModeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="unit-label">Unidade</Label>
+              <Input
+                id="unit-label"
+                value={formState.unitLabel}
+                onChange={(event) => setFormState((current) => ({ ...current, unitLabel: event.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="condition-status">Estado</Label>
+              <select
+                id="condition-status"
+                value={formState.conditionStatus}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, conditionStatus: event.target.value }))
+                }
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                {conditionStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="minimum-quantity">Estoque minimo</Label>
+              <Input
+                id="minimum-quantity"
+                type="number"
+                step="0.001"
+                value={formState.minimumQuantity}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, minimumQuantity: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ideal-quantity">Estoque ideal</Label>
+              <Input
+                id="ideal-quantity"
+                type="number"
+                step="0.001"
+                value={formState.idealQuantity}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, idealQuantity: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="current-quantity">Saldo atual</Label>
+              <Input id="current-quantity" value={currentQuantity} readOnly disabled />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location-text">Localizacao</Label>
+              <Input
+                id="location-text"
+                value={formState.locationText}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, locationText: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brand">Marca</Label>
+              <Input
+                id="brand"
+                value={formState.brand}
+                onChange={(event) => setFormState((current) => ({ ...current, brand: event.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="model">Modelo</Label>
+              <Input
+                id="model"
+                value={formState.model}
+                onChange={(event) => setFormState((current) => ({ ...current, model: event.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="serial-number">Serial</Label>
+              <Input
+                id="serial-number"
+                value={formState.serialNumber}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, serialNumber: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="acquisition-date">Data de aquisicao</Label>
+              <Input
+                id="acquisition-date"
+                type="date"
+                value={formState.acquisitionDate}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, acquisitionDate: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2 xl:col-span-1">
+              <Label htmlFor="acquisition-cost">Custo de aquisicao</Label>
+              <Input
+                id="acquisition-cost"
+                type="number"
+                step="0.01"
+                value={formState.acquisitionCost}
+                onChange={(event) =>
+                  setFormState((current) => ({ ...current, acquisitionCost: event.target.value }))
+                }
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
+              <input
+                type="checkbox"
+                checked={formState.isActive}
+                onChange={(event) => setFormState((current) => ({ ...current, isActive: event.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600"
+              />
+              Item ativo
+            </label>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="item-sku">SKU</Label>
-          <Input
-            id="item-sku"
-            value={formState.sku}
-            onChange={(event) => setFormState((current) => ({ ...current, sku: event.target.value }))}
-          />
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="item-description">Descricao</Label>
-          <Textarea
-            id="item-description"
-            value={formState.description}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, description: event.target.value }))
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="item-type">Tipo</Label>
-          <select
-            id="item-type"
-            value={formState.itemType}
-            onChange={(event) => setFormState((current) => ({ ...current, itemType: event.target.value }))}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            {itemTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="tracking-mode">Rastreamento</Label>
-          <select
-            id="tracking-mode"
-            value={formState.trackingMode}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, trackingMode: event.target.value }))
-            }
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            {trackingModeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="unit-label">Unidade</Label>
-          <Input
-            id="unit-label"
-            value={formState.unitLabel}
-            onChange={(event) => setFormState((current) => ({ ...current, unitLabel: event.target.value }))}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="condition-status">Estado</Label>
-          <select
-            id="condition-status"
-            value={formState.conditionStatus}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, conditionStatus: event.target.value }))
-            }
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            {conditionStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="minimum-quantity">Estoque minimo</Label>
-          <Input
-            id="minimum-quantity"
-            type="number"
-            step="0.001"
-            value={formState.minimumQuantity}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, minimumQuantity: event.target.value }))
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="ideal-quantity">Estoque ideal</Label>
-          <Input
-            id="ideal-quantity"
-            type="number"
-            step="0.001"
-            value={formState.idealQuantity}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, idealQuantity: event.target.value }))
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="current-quantity">Saldo atual</Label>
-          <Input id="current-quantity" value={currentQuantity} readOnly disabled />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="location-text">Localizacao</Label>
-          <Input
-            id="location-text"
-            value={formState.locationText}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, locationText: event.target.value }))
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="brand">Marca</Label>
-          <Input
-            id="brand"
-            value={formState.brand}
-            onChange={(event) => setFormState((current) => ({ ...current, brand: event.target.value }))}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="model">Modelo</Label>
-          <Input
-            id="model"
-            value={formState.model}
-            onChange={(event) => setFormState((current) => ({ ...current, model: event.target.value }))}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="serial-number">Serial</Label>
-          <Input
-            id="serial-number"
-            value={formState.serialNumber}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, serialNumber: event.target.value }))
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="acquisition-date">Data de aquisicao</Label>
-          <Input
-            id="acquisition-date"
-            type="date"
-            value={formState.acquisitionDate}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, acquisitionDate: event.target.value }))
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="acquisition-cost">Custo de aquisicao</Label>
-          <Input
-            id="acquisition-cost"
-            type="number"
-            step="0.01"
-            value={formState.acquisitionCost}
-            onChange={(event) =>
-              setFormState((current) => ({ ...current, acquisitionCost: event.target.value }))
-            }
-          />
-        </div>
-
-        <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
-          <input
-            type="checkbox"
-            checked={formState.isActive}
-            onChange={(event) => setFormState((current) => ({ ...current, isActive: event.target.checked }))}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600"
-          />
-          Item ativo
-        </label>
+        <DialogFooter className="shrink-0 border-t px-4 py-4 sm:px-6">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button onClick={onSubmit} disabled={saving}>
+            {saving ? 'Salvando...' : mode === 'create' ? 'Criar item' : 'Salvar item'}
+          </Button>
+        </DialogFooter>
       </div>
-
-      <DialogFooter>
-        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-          Cancelar
-        </Button>
-        <Button onClick={onSubmit} disabled={saving}>
-          {saving ? 'Salvando...' : mode === 'create' ? 'Criar item' : 'Salvar item'}
-        </Button>
-      </DialogFooter>
     </DialogContent>
   </Dialog>
 );
@@ -757,41 +762,22 @@ const ManageInventory = () => {
     }, {});
   }, [filteredAttachments]);
 
+  const writableOrgUnitIds = useMemo(
+    () => new Set((availableOrgUnits || []).map((orgUnit) => orgUnit.id)),
+    [availableOrgUnits]
+  );
+
+  const canWriteActiveInventory = Boolean(
+    activeInventory &&
+      (user?.role === 'admin' || (canWriteInventory && writableOrgUnitIds.has(activeInventory.org_unit_id)))
+  );
+
+  const canAdminActiveInventory = Boolean(
+    activeInventory &&
+      (user?.role === 'admin' || (canAdminInventory && writableOrgUnitIds.has(activeInventory.org_unit_id)))
+  );
+
   const loadAvailableOrgUnits = async () => {
-    const shouldRespectUnitModuleSettings = user?.role === 'admin' || user?.role === 'secretary';
-
-    if (shouldRespectUnitModuleSettings) {
-      const { data: enabledSettings, error: enabledSettingsError } = await supabase
-        .from('org_unit_module_settings')
-        .select('org_unit_id')
-        .eq('module_key', 'inventory')
-        .eq('is_enabled', true);
-
-      if (enabledSettingsError) throw enabledSettingsError;
-
-      const enabledOrgUnitIds = new Set((enabledSettings || []).map((row) => row.org_unit_id));
-
-      if (user?.role === 'admin') {
-        if (enabledOrgUnitIds.size === 0) return [];
-
-        const { data, error } = await supabase
-          .from('org_units')
-          .select('id, type, slug, name')
-          .eq('is_active', true)
-          .in('id', Array.from(enabledOrgUnitIds))
-          .order('type', { ascending: true })
-          .order('name', { ascending: true });
-
-        if (error) throw error;
-        return data || [];
-      }
-
-      return (user?.orgUnits || [])
-        .map((link) => link.orgUnit)
-        .filter((orgUnit) => orgUnit && enabledOrgUnitIds.has(orgUnit.id))
-        .sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`, 'pt-BR'));
-    }
-
     if (user?.role === 'admin') {
       const { data, error } = await supabase
         .from('org_units')
@@ -802,6 +788,23 @@ const ManageInventory = () => {
 
       if (error) throw error;
       return data || [];
+    }
+
+    if (user) {
+      const { data: enabledSettings, error: enabledSettingsError } = await supabase
+        .from('org_unit_module_settings')
+        .select('org_unit_id')
+        .eq('module_key', 'inventory')
+        .eq('is_enabled', true);
+
+      if (enabledSettingsError) throw enabledSettingsError;
+
+      const enabledOrgUnitIds = new Set((enabledSettings || []).map((row) => row.org_unit_id));
+
+      return (user?.orgUnits || [])
+        .map((link) => link.orgUnit)
+        .filter((orgUnit) => orgUnit && enabledOrgUnitIds.has(orgUnit.id))
+        .sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`, 'pt-BR'));
     }
 
     return (user?.orgUnits || [])
@@ -1138,6 +1141,16 @@ const ManageInventory = () => {
   };
 
   const openCreateItemDialog = () => {
+    if (!canWriteActiveInventory) {
+      toast({
+        title: 'Erro',
+        description:
+          'Voce nao tem permissao de escrita neste inventario. Verifique o vinculo com a unidade e a habilitacao do modulo inventory.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setItemDialogMode('create');
     setEditingItemId(null);
     setItemForm(createEmptyItemForm());
@@ -1173,6 +1186,16 @@ const ManageInventory = () => {
       toast({
         title: 'Erro',
         description: 'Informe ao menos o nome do item.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!canWriteActiveInventory) {
+      toast({
+        title: 'Erro',
+        description:
+          'Seu usuario nao pode gravar itens neste inventario. Verifique se o modulo inventory esta habilitado para a unidade e se voce tem permissao de escrita nela.',
         variant: 'destructive',
       });
       return;
@@ -1225,7 +1248,9 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Nao foi possivel salvar o item.'),
+        description: isInventoryWritePolicyError(error)
+          ? 'Seu usuario nao pode gravar itens neste inventario. Verifique se o modulo inventory esta habilitado para a unidade e se voce tem permissao de escrita nela.'
+          : formatInventoryError(error, 'Nao foi possivel salvar o item.'),
         variant: 'destructive',
       });
     } finally {
@@ -1659,20 +1684,20 @@ const ManageInventory = () => {
                       </div>
                     </div>
 
-                    {(canWriteInventory || canAdminInventory) && (
+                    {(canWriteActiveInventory || canAdminActiveInventory) && (
                       <div className="flex flex-wrap gap-2">
                         {!isDedicatedInventoryView ? (
                           <Button variant="outline" onClick={() => navigate(`/dashboard/inventory/${activeInventory.id}`)}>
                             Foco neste inventario
                           </Button>
                         ) : null}
-                        {canWriteInventory ? (
+                        {canWriteActiveInventory ? (
                           <Button variant="outline" onClick={() => openEditInventoryDialog(activeInventory)}>
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
                           </Button>
                         ) : null}
-                        {canAdminInventory ? (
+                        {canAdminActiveInventory ? (
                           <Button variant="destructive" onClick={() => void deleteInventory(activeInventory)}>
                             <Trash2 className="mr-2 h-4 w-4" />
                             Excluir
@@ -1696,7 +1721,7 @@ const ManageInventory = () => {
                       Cadastro de patrimonio, consumo e documentos vinculados ao inventario.
                     </p>
                   </div>
-                  {activeInventory && canWriteInventory ? (
+                  {activeInventory && canWriteActiveInventory ? (
                     <Button onClick={openCreateItemDialog}>
                       <Plus className="mr-2 h-4 w-4" />
                       Novo item
@@ -1811,7 +1836,7 @@ const ManageInventory = () => {
                               <td className="px-4 py-4 text-slate-600">{item.location_text || '-'}</td>
                               <td className="px-4 py-4">
                                 <div className="flex justify-end gap-2">
-                                  {canWriteInventory ? (
+                                  {canWriteActiveInventory ? (
                                     <>
                                       <Button variant="outline" size="icon" onClick={() => openEditItemDialog(item)}>
                                         <Pencil className="h-4 w-4" />
@@ -1877,7 +1902,7 @@ const ManageInventory = () => {
                     </div>
                   ) : null}
 
-                  {activeItem && canWriteInventory ? (
+                  {activeItem && canWriteActiveInventory ? (
                     <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
@@ -2066,7 +2091,7 @@ const ManageInventory = () => {
                     </div>
                   ) : null}
 
-                  {activeItem && canWriteInventory ? (
+                  {activeItem && canWriteActiveInventory ? (
                     <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <div className="space-y-4">
                         <div className="space-y-2">
@@ -2205,7 +2230,7 @@ const ManageInventory = () => {
                                     <Download className="mr-2 h-4 w-4" />
                                     Baixar
                                   </Button>
-                                  {canWriteInventory ? (
+                                  {canWriteActiveInventory ? (
                                     <>
                                       {!attachment.is_cover ? (
                                         <Button variant="outline" size="sm" onClick={() => void setAttachmentAsCover(attachment)}>
