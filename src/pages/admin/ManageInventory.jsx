@@ -656,6 +656,11 @@ const ManageInventory = () => {
 
   const [selectedInventoryId, setSelectedInventoryId] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState(null);
+  const [activeInventoryAccess, setActiveInventoryAccess] = useState({
+    loading: false,
+    write: null,
+    admin: null,
+  });
 
   const canWriteInventory = hasModuleAccess('inventory', 'write');
   const canAdminInventory = hasModuleAccess('inventory', 'admin');
@@ -762,20 +767,77 @@ const ManageInventory = () => {
     }, {});
   }, [filteredAttachments]);
 
-  const writableOrgUnitIds = useMemo(
-    () => new Set((availableOrgUnits || []).map((orgUnit) => orgUnit.id)),
-    [availableOrgUnits]
-  );
-
   const canWriteActiveInventory = Boolean(
     activeInventory &&
-      (user?.role === 'admin' || (canWriteInventory && writableOrgUnitIds.has(activeInventory.org_unit_id)))
+      (typeof activeInventoryAccess.write === 'boolean'
+        ? activeInventoryAccess.write
+        : user?.role === 'admin' || canWriteInventory)
   );
 
   const canAdminActiveInventory = Boolean(
     activeInventory &&
-      (user?.role === 'admin' || (canAdminInventory && writableOrgUnitIds.has(activeInventory.org_unit_id)))
+      (typeof activeInventoryAccess.admin === 'boolean'
+        ? activeInventoryAccess.admin
+        : user?.role === 'admin' || canAdminInventory)
   );
+
+  const loadActiveInventoryAccess = async (inventoryId) => {
+    if (!inventoryId || !isSupabaseReady) {
+      setActiveInventoryAccess({ loading: false, write: null, admin: null });
+      return;
+    }
+
+    setActiveInventoryAccess((current) => ({ ...current, loading: true }));
+
+    try {
+      const [writeResponse, adminResponse] = await Promise.all([
+        supabase.rpc('inventory_can_access_inventory', {
+          target_inventory_id: inventoryId,
+          permission: 'write',
+        }),
+        supabase.rpc('inventory_can_access_inventory', {
+          target_inventory_id: inventoryId,
+          permission: 'admin',
+        }),
+      ]);
+
+      if (writeResponse.error) throw writeResponse.error;
+      if (adminResponse.error) throw adminResponse.error;
+
+      setActiveInventoryAccess({
+        loading: false,
+        write: Boolean(writeResponse.data),
+        admin: Boolean(adminResponse.data),
+      });
+    } catch (error) {
+      console.error('Falha ao carregar acesso do inventario', { inventoryId, error });
+      setActiveInventoryAccess({
+        loading: false,
+        write: user?.role === 'admin' || canWriteInventory,
+        admin: user?.role === 'admin' || canAdminInventory,
+      });
+    }
+  };
+
+  const checkOrgUnitPermission = async (orgUnitId, permission) => {
+    const { data, error } = await supabase.rpc('inventory_can_access_org_unit', {
+      target_org_unit_id: orgUnitId,
+      permission,
+    });
+
+    if (error) throw error;
+    return Boolean(data);
+  };
+
+  const checkInventoryPermission = async (inventoryId, permission) => {
+    const { data, error } = await supabase.rpc('inventory_can_access_inventory', {
+      target_inventory_id: inventoryId,
+      permission,
+    });
+
+    if (error) throw error;
+    return Boolean(data);
+  };
 
   const ensureSupabaseWriteSession = async () => {
     const [{ data: sessionData, error: sessionError }, { data: userData, error: userError }] = await Promise.all([
@@ -1032,11 +1094,13 @@ const ManageInventory = () => {
     if (!selectedInventoryId) {
       setItems([]);
       setSelectedItemId(null);
+      setActiveInventoryAccess({ loading: false, write: null, admin: null });
       return;
     }
 
+    void loadActiveInventoryAccess(selectedInventoryId);
     void loadItems(selectedInventoryId);
-  }, [selectedInventoryId]);
+  }, [selectedInventoryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!items.length) {
@@ -1105,6 +1169,12 @@ const ManageInventory = () => {
     setSavingInventory(true);
     try {
       await ensureSupabaseWriteSession();
+      const canWriteOrgUnit = await checkOrgUnitPermission(inventoryForm.orgUnitId, 'write');
+      if (!canWriteOrgUnit) {
+        throw new Error(
+          'Seu perfil autenticado nao possui permissao de escrita nesta unidade para o modulo de inventario.'
+        );
+      }
 
       const payload = {
         org_unit_id: inventoryForm.orgUnitId,
@@ -1118,8 +1188,18 @@ const ManageInventory = () => {
       let savedInventoryId = editingInventoryId;
 
       if (inventoryDialogMode === 'create') {
-        const { data, error } = await supabase.from('inventories').insert(payload).select('id').single();
+        const { error } = await supabase.from('inventories').insert(payload);
         if (error) throw error;
+        const { data, error: lookupError } = await supabase
+          .from('inventories')
+          .select('id')
+          .eq('org_unit_id', payload.org_unit_id)
+          .eq('name', payload.name)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lookupError) throw lookupError;
         savedInventoryId = data?.id || null;
       } else {
         const { error } = await supabase.from('inventories').update(payload).eq('id', editingInventoryId);
@@ -1255,6 +1335,12 @@ const ManageInventory = () => {
     setSavingItem(true);
     try {
       await ensureSupabaseWriteSession();
+      const canWriteInventoryNow = await checkInventoryPermission(selectedInventoryId, 'write');
+      if (!canWriteInventoryNow) {
+        throw new Error(
+          'Seu perfil autenticado nao possui permissao de escrita neste inventario. Atualize a sessao e confira os acessos do modulo.'
+        );
+      }
 
       const payload = {
         inventory_id: selectedInventoryId,
@@ -1279,8 +1365,18 @@ const ManageInventory = () => {
       let savedItemId = editingItemId;
 
       if (itemDialogMode === 'create') {
-        const { data, error } = await supabase.from('inventory_items').insert(payload).select('id').single();
+        const { error } = await supabase.from('inventory_items').insert(payload);
         if (error) throw error;
+        const { data, error: lookupError } = await supabase
+          .from('inventory_items')
+          .select('id')
+          .eq('inventory_id', selectedInventoryId)
+          .eq('name', payload.name)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lookupError) throw lookupError;
         savedItemId = data?.id || null;
       } else {
         const { error } = await supabase.from('inventory_items').update(payload).eq('id', editingItemId);
@@ -1365,6 +1461,12 @@ const ManageInventory = () => {
     setSavingMovement(true);
     try {
       await ensureSupabaseWriteSession();
+      const canWriteInventoryNow = await checkInventoryPermission(selectedInventoryId, 'write');
+      if (!canWriteInventoryNow) {
+        throw new Error(
+          'Seu perfil autenticado nao possui permissao de escrita neste inventario. Atualize a sessao e confira os acessos do modulo.'
+        );
+      }
 
       const { error } = await supabase.from('inventory_movements').insert({
         inventory_item_id: activeItem.id,
@@ -1423,6 +1525,12 @@ const ManageInventory = () => {
 
     try {
       await ensureSupabaseWriteSession();
+      const canWriteInventoryNow = await checkInventoryPermission(selectedInventoryId, 'write');
+      if (!canWriteInventoryNow) {
+        throw new Error(
+          'Seu perfil autenticado nao possui permissao de escrita neste inventario. Atualize a sessao e confira os acessos do modulo.'
+        );
+      }
 
       const shouldSetCover = attachmentForm.isCover || attachments.length === 0;
       await clearExistingCoverIfNeeded(shouldSetCover);
