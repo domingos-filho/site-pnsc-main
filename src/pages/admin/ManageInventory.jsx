@@ -56,11 +56,6 @@ const itemTypeOptions = [
   { value: 'other', label: 'Outro' },
 ];
 
-const trackingModeOptions = [
-  { value: 'quantity', label: 'Quantidade' },
-  { value: 'serial', label: 'Serial' },
-];
-
 const conditionStatusOptions = [
   { value: 'new', label: 'Novo' },
   { value: 'good', label: 'Bom' },
@@ -68,40 +63,6 @@ const conditionStatusOptions = [
   { value: 'repair', label: 'Em reparo' },
   { value: 'retired', label: 'Baixado' },
 ];
-
-const movementTypeOptions = [
-  { value: 'entry', label: 'Entrada' },
-  { value: 'exit', label: 'Saida' },
-  { value: 'adjustment', label: 'Ajuste' },
-  { value: 'transfer_in', label: 'Transferencia recebida' },
-  { value: 'transfer_out', label: 'Transferencia enviada' },
-  { value: 'stocktake', label: 'Contagem' },
-  { value: 'writeoff', label: 'Baixa' },
-];
-
-const attachmentKindOptions = [
-  { value: 'image', label: 'Imagem' },
-  { value: 'invoice', label: 'Nota fiscal' },
-  { value: 'document', label: 'Documento' },
-  { value: 'other', label: 'Outro' },
-];
-
-const movementReferenceSuggestions = [
-  'compra',
-  'doacao',
-  'emprestimo',
-  'evento',
-  'inventario',
-  'manutencao',
-  'reposicao',
-  'transferencia',
-];
-
-const createLocalDateTimeValue = () => {
-  const now = new Date();
-  const offsetMs = now.getTimezoneOffset() * 60 * 1000;
-  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
-};
 
 const createEmptyInventoryForm = (orgUnitId = '') => ({
   orgUnitId,
@@ -117,11 +78,8 @@ const createEmptyItemForm = () => ({
   name: '',
   description: '',
   itemType: 'consumable',
-  trackingMode: 'quantity',
   unitLabel: 'un',
   currentQuantity: '0',
-  minimumQuantity: '0',
-  idealQuantity: '',
   locationText: '',
   brand: '',
   model: '',
@@ -133,22 +91,6 @@ const createEmptyItemForm = () => ({
   photoFile: null,
   photoPreviewUrl: '',
   removePhoto: false,
-});
-
-const createEmptyMovementForm = () => ({
-  movementType: 'entry',
-  quantity: '',
-  referenceType: '',
-  referenceCode: '',
-  notes: '',
-  occurredAt: createLocalDateTimeValue(),
-});
-
-const createEmptyAttachmentForm = () => ({
-  file: null,
-  kind: 'image',
-  caption: '',
-  isCover: false,
 });
 
 const normalizeNestedOrgUnit = (value) => (Array.isArray(value) ? value[0] : value || null);
@@ -208,82 +150,8 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-const attachmentKindLabel = (kind) =>
-  attachmentKindOptions.find((option) => option.value === kind)?.label || kind;
-
-const movementTypeLabel = (type) =>
-  movementTypeOptions.find((option) => option.value === type)?.label || type;
-
-const buildMovementReferenceSummary = (movement) => {
-  const referenceType = trimOrNull(movement.reference_type);
-  const referenceCode = trimOrNull(movement.reference_code);
-
-  if (referenceType && referenceCode) return `${referenceType} · ${referenceCode}`;
-  if (referenceType) return referenceType;
-  if (referenceCode) return referenceCode;
-  return null;
-};
-
-const buildMovementDelta = (movementType, quantityInput) => {
-  const parsed = Number(quantityInput);
-  if (!Number.isFinite(parsed) || parsed === 0) return null;
-
-  switch (movementType) {
-    case 'entry':
-    case 'transfer_in':
-      return Math.abs(parsed);
-    case 'exit':
-    case 'transfer_out':
-    case 'writeoff':
-      return -Math.abs(parsed);
-    case 'adjustment':
-    case 'stocktake':
-    default:
-      return parsed;
-  }
-};
-
-const movementHelpText = (movementType) => {
-  if (movementType === 'adjustment' || movementType === 'stocktake') {
-    return 'Use valor positivo para acrescentar saldo e negativo para reduzir.';
-  }
-
-  return 'Informe um valor positivo. O sistema aplica o sinal conforme o tipo de movimentacao.';
-};
-
 const isInventoryWritePolicyError = (error) =>
   error?.code === '42501' && /row-level security policy/i.test(error?.message || '');
-
-const safeDownloadSegment = (value, fallback) => {
-  const normalized = String(value || '')
-    .normalize('NFKD')
-    .replace(/[^\w.-]+/g, '_')
-    .replace(/_{2,}/g, '_')
-    .replace(/^_+|_+$/g, '');
-
-  return normalized || fallback;
-};
-
-const buildAttachmentDownloadName = (attachment, item, inventory) => {
-  const inventorySegment = safeDownloadSegment(inventory?.slug || inventory?.name, 'inventario');
-  const itemSegment = safeDownloadSegment(item?.sku || item?.name, 'item');
-  const originalName = safeDownloadSegment(attachment?.file_name, 'anexo');
-
-  return `${inventorySegment}--${itemSegment}--${originalName}`;
-};
-
-const triggerBrowserDownload = (url, fileName) => {
-  if (!url) return;
-
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName || 'anexo';
-  link.target = '_blank';
-  link.rel = 'noreferrer';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
 
 const InventoryFormDialog = ({
   open,
@@ -660,7 +528,6 @@ const ManageInventory = () => {
   const [inventories, setInventories] = useState([]);
   const [availableOrgUnits, setAvailableOrgUnits] = useState([]);
   const [items, setItems] = useState([]);
-  const [movements, setMovements] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [loadingInventories, setLoadingInventories] = useState(true);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -679,20 +546,10 @@ const ManageInventory = () => {
   const [savingItem, setSavingItem] = useState(false);
   const [itemPhotoInputKey, setItemPhotoInputKey] = useState(0);
 
-  const [savingMovement, setSavingMovement] = useState(false);
-  const [movementForm, setMovementForm] = useState(createEmptyMovementForm());
-
-  const [savingAttachment, setSavingAttachment] = useState(false);
-  const [attachmentForm, setAttachmentForm] = useState(createEmptyAttachmentForm());
-  const [attachmentInputKey, setAttachmentInputKey] = useState(0);
-
   const [inventorySearch, setInventorySearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [itemTypeFilter, setItemTypeFilter] = useState('all');
   const [itemStatusFilter, setItemStatusFilter] = useState('all');
-  const [movementSearch, setMovementSearch] = useState('');
-  const [movementTypeFilter, setMovementTypeFilter] = useState('all');
-  const [attachmentKindFilter, setAttachmentKindFilter] = useState('all');
 
   const [selectedInventoryId, setSelectedInventoryId] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState(null);
@@ -761,43 +618,6 @@ const ManageInventory = () => {
       return matchesQuery && matchesType && matchesStatus;
     });
   }, [itemSearch, itemStatusFilter, itemTypeFilter, items]);
-
-  const filteredMovements = useMemo(() => {
-    const query = normalizeSearch(movementSearch);
-
-    return movements.filter((movement) => {
-      const matchesType = movementTypeFilter === 'all' || movement.movement_type === movementTypeFilter;
-      const matchesQuery =
-        !query ||
-        [
-          movement.movement_type,
-          movement.reference_type,
-          movement.reference_code,
-          movement.notes,
-          buildMovementReferenceSummary(movement),
-        ]
-          .filter(Boolean)
-          .some((value) => normalizeSearch(value).includes(query));
-
-      return matchesType && matchesQuery;
-    });
-  }, [movementSearch, movementTypeFilter, movements]);
-
-  const filteredAttachments = useMemo(() => {
-    return attachments.filter(
-      (attachment) => attachmentKindFilter === 'all' || attachment.kind === attachmentKindFilter
-    );
-  }, [attachmentKindFilter, attachments]);
-
-  const groupedAttachments = useMemo(() => {
-    return filteredAttachments.reduce((accumulator, attachment) => {
-      const key = attachment.kind || 'other';
-      const currentGroup = accumulator[key] || [];
-      currentGroup.push(attachment);
-      accumulator[key] = currentGroup;
-      return accumulator;
-    }, {});
-  }, [filteredAttachments]);
 
   const canWriteActiveInventory = Boolean(
     activeInventory &&
@@ -1109,7 +929,6 @@ const ManageInventory = () => {
 
   const loadItemDetails = async (itemId) => {
     if (!itemId || !isSupabaseReady) {
-      setMovements([]);
       setAttachments([]);
       return;
     }
@@ -1117,7 +936,6 @@ const ManageInventory = () => {
     setLoadingItemDetails(true);
     try {
       const imageAttachments = await loadItemImageAttachments(itemId);
-      setMovements([]);
       setAttachments(imageAttachments);
     } catch (error) {
       toast({
@@ -1125,7 +943,6 @@ const ManageInventory = () => {
         description: formatInventoryError(error, 'Nao foi possivel carregar a foto do item.'),
         variant: 'destructive',
       });
-      setMovements([]);
       setAttachments([]);
     } finally {
       setLoadingItemDetails(false);
@@ -1216,7 +1033,6 @@ const ManageInventory = () => {
 
   useEffect(() => {
     if (!selectedItemId) {
-      setMovements([]);
       setAttachments([]);
       return;
     }
@@ -1387,11 +1203,8 @@ const ManageInventory = () => {
       name: item.name || '',
       description: item.description || '',
       itemType: item.item_type || 'consumable',
-      trackingMode: item.tracking_mode || 'quantity',
       unitLabel: item.unit_label || 'un',
       currentQuantity: String(item.current_quantity ?? 0),
-      minimumQuantity: String(item.minimum_quantity ?? 0),
-      idealQuantity: item.ideal_quantity ?? '',
       locationText: item.location_text || '',
       brand: item.brand || '',
       model: item.model || '',
@@ -1459,8 +1272,6 @@ const ManageInventory = () => {
         tracking_mode: 'quantity',
         unit_label: trimOrNull(itemForm.unitLabel) || 'un',
         current_quantity: parseNumberOrZero(itemForm.currentQuantity),
-        minimum_quantity: parseNumberOrZero(itemForm.minimumQuantity),
-        ideal_quantity: parseNumberOrNull(itemForm.idealQuantity),
         location_text: trimOrNull(itemForm.locationText),
         brand: trimOrNull(itemForm.brand),
         model: trimOrNull(itemForm.model),
@@ -1535,9 +1346,17 @@ const ManageInventory = () => {
 
     try {
       await ensureSupabaseWriteSession();
+      const imageAttachments = await loadItemImageAttachments(item.id).catch(() => []);
 
       const { error } = await supabase.from('inventory_items').delete().eq('id', item.id);
       if (error) throw error;
+
+      await Promise.allSettled(
+        imageAttachments
+          .map((attachment) => attachment.bucket_path)
+          .filter(Boolean)
+          .map((bucketPath) => removeInventoryStorageObject(bucketPath))
+      );
 
       await loadItems(selectedInventoryId);
 
@@ -1555,238 +1374,12 @@ const ManageInventory = () => {
             })
           : formatInventoryError(
               error,
-              'Nao foi possivel excluir o item. Se houver historico de movimentacoes, o item deve permanecer.'
+              'Nao foi possivel excluir o item. Verifique se existem registros antigos vinculados a ele.'
             ),
         variant: 'destructive',
       });
     }
   };
-
-  const submitMovement = async () => {
-    if (!activeItem) return;
-
-    const quantityDelta = buildMovementDelta(movementForm.movementType, movementForm.quantity);
-    if (!quantityDelta) {
-      toast({
-        title: 'Erro',
-        description: 'Informe uma quantidade valida para a movimentacao.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setSavingMovement(true);
-    try {
-      await ensureSupabaseWriteSession();
-      const canWriteInventoryNow = await checkInventoryPermission(selectedInventoryId, 'write');
-      if (!canWriteInventoryNow) {
-        throw new Error(
-          'Seu perfil autenticado nao possui permissao de escrita neste inventario. Atualize a sessao e confira os acessos do modulo.'
-        );
-      }
-
-      const { error } = await supabase.from('inventory_movements').insert({
-        inventory_item_id: activeItem.id,
-        movement_type: movementForm.movementType,
-        quantity_delta: quantityDelta,
-        reference_type: trimOrNull(movementForm.referenceType),
-        reference_code: trimOrNull(movementForm.referenceCode),
-        notes: trimOrNull(movementForm.notes),
-        occurred_at: movementForm.occurredAt ? new Date(movementForm.occurredAt).toISOString() : null,
-      });
-
-      if (error) throw error;
-
-      await Promise.all([loadItems(selectedInventoryId), loadItemDetails(activeItem.id)]);
-      setMovementForm(createEmptyMovementForm());
-      toast({ title: 'Sucesso!', description: 'Movimentacao registrada.' });
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: isInventoryWritePolicyError(error)
-          ? buildUnexpectedWritePolicyMessage('movimentacoes', error, {
-              inventoryItemId: activeItem.id,
-            })
-          : formatInventoryError(error, 'Nao foi possivel registrar a movimentacao.'),
-        variant: 'destructive',
-      });
-    } finally {
-      setSavingMovement(false);
-    }
-  };
-
-  const clearExistingCoverIfNeeded = async (shouldSetCover) => {
-    if (!shouldSetCover || !activeItem) return;
-
-    const { error } = await supabase
-      .from('inventory_item_attachments')
-      .update({ is_cover: false })
-      .eq('inventory_item_id', activeItem.id)
-      .eq('is_cover', true);
-
-    if (error) throw error;
-  };
-
-  const submitAttachment = async () => {
-    if (!activeItem || !attachmentForm.file) {
-      toast({
-        title: 'Erro',
-        description: 'Selecione um arquivo antes de enviar o anexo.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setSavingAttachment(true);
-    let uploadedPath = null;
-
-    try {
-      await ensureSupabaseWriteSession();
-      const canWriteInventoryNow = await checkInventoryPermission(selectedInventoryId, 'write');
-      if (!canWriteInventoryNow) {
-        throw new Error(
-          'Seu perfil autenticado nao possui permissao de escrita neste inventario. Atualize a sessao e confira os acessos do modulo.'
-        );
-      }
-
-      const shouldSetCover = attachmentForm.isCover || attachments.length === 0;
-      await clearExistingCoverIfNeeded(shouldSetCover);
-
-      uploadedPath = await uploadInventoryAttachmentFile({
-        inventoryItemId: activeItem.id,
-        file: attachmentForm.file,
-      });
-
-      const { error } = await supabase.from('inventory_item_attachments').insert({
-        inventory_item_id: activeItem.id,
-        bucket_id: 'inventory-media',
-        bucket_path: uploadedPath,
-        file_name: attachmentForm.file.name,
-        mime_type: attachmentForm.file.type || null,
-        file_size_bytes: attachmentForm.file.size || null,
-        kind: attachmentForm.kind,
-        caption: trimOrNull(attachmentForm.caption),
-        is_cover: shouldSetCover,
-      });
-
-      if (error) throw error;
-
-      await loadItemDetails(activeItem.id);
-      setAttachmentForm(createEmptyAttachmentForm());
-      setAttachmentInputKey((current) => current + 1);
-      toast({ title: 'Sucesso!', description: 'Anexo enviado.' });
-    } catch (error) {
-      if (uploadedPath) {
-        try {
-          await removeInventoryStorageObject(uploadedPath);
-        } catch {
-          // keep original error
-        }
-      }
-
-      toast({
-        title: 'Erro',
-        description: isInventoryWritePolicyError(error)
-          ? buildUnexpectedWritePolicyMessage('anexos', error, {
-              inventoryItemId: activeItem.id,
-              uploadedPath,
-            })
-          : formatInventoryError(error, 'Nao foi possivel enviar o anexo.'),
-        variant: 'destructive',
-      });
-    } finally {
-      setSavingAttachment(false);
-    }
-  };
-
-  const setAttachmentAsCover = async (attachment) => {
-    if (!activeItem) return;
-
-    try {
-      await ensureSupabaseWriteSession();
-
-      await clearExistingCoverIfNeeded(true);
-
-      const { error } = await supabase
-        .from('inventory_item_attachments')
-        .update({ is_cover: true })
-        .eq('id', attachment.id);
-
-      if (error) throw error;
-
-      await loadItemDetails(activeItem.id);
-      toast({ title: 'Sucesso!', description: 'Capa do item atualizada.' });
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: isInventoryWritePolicyError(error)
-          ? buildUnexpectedWritePolicyMessage('anexos', error, {
-              attachmentId: attachment.id,
-            })
-          : formatInventoryError(error, 'Nao foi possivel atualizar a capa do item.'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const deleteAttachment = async (attachment) => {
-    if (!window.confirm(`Remover o anexo "${attachment.file_name}"?`)) {
-      return;
-    }
-
-    try {
-      await ensureSupabaseWriteSession();
-
-      const { error } = await supabase.from('inventory_item_attachments').delete().eq('id', attachment.id);
-      if (error) throw error;
-
-      try {
-        await removeInventoryStorageObject(attachment.bucket_path);
-      } catch {
-        toast({
-          title: 'Aviso',
-          description: 'O registro foi removido, mas nao foi possivel excluir o arquivo do Storage.',
-        });
-      }
-
-      await loadItemDetails(activeItem.id);
-      toast({ title: 'Sucesso!', description: 'Anexo removido.' });
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: isInventoryWritePolicyError(error)
-          ? buildUnexpectedWritePolicyMessage('anexos', error, {
-              attachmentId: attachment.id,
-            })
-          : formatInventoryError(error, 'Nao foi possivel remover o anexo.'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const downloadAttachment = async (attachment) => {
-    try {
-      const signedUrl = attachment.signedUrl || (await getInventorySignedUrl(attachment.bucket_path));
-      triggerBrowserDownload(
-        signedUrl,
-        buildAttachmentDownloadName(attachment, activeItem, activeInventory)
-      );
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: formatInventoryError(error, 'Nao foi possivel gerar o download do anexo.'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const downloadAttachmentGroup = async (attachmentGroup = []) => {
-    for (const attachment of attachmentGroup) {
-      await downloadAttachment(attachment);
-      await new Promise((resolve) => window.setTimeout(resolve, 150));
-    }
-  };
-
   const handleInventorySelection = (inventoryId) => {
     setSelectedInventoryId(inventoryId);
     if (isDedicatedInventoryView) {
@@ -2297,409 +1890,6 @@ const ManageInventory = () => {
                   )}
                 </div>
               </div>
-
-              {false ? (
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-slate-900">Movimentacoes</h3>
-                    <p className="text-sm text-slate-500">
-                      {activeItem ? `Historico do item ${activeItem.name}.` : 'Selecione um item para registrar movimentacoes.'}
-                    </p>
-                  </div>
-
-                  {activeItem ? (
-                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <Filter className="h-4 w-4" />
-                        Busca do historico
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <Input
-                          value={movementSearch}
-                          onChange={(event) => setMovementSearch(event.target.value)}
-                          placeholder="Buscar por referencia, nota ou observacao"
-                          className="md:col-span-2"
-                        />
-                        <select
-                          value={movementTypeFilter}
-                          onChange={(event) => setMovementTypeFilter(event.target.value)}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        >
-                          <option value="all">Todos os tipos</option>
-                          {movementTypeOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {activeItem && canWriteActiveInventory ? (
-                    <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="movement-type">Tipo</Label>
-                          <select
-                            id="movement-type"
-                            value={movementForm.movementType}
-                            onChange={(event) =>
-                              setMovementForm((current) => ({ ...current, movementType: event.target.value }))
-                            }
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          >
-                            {movementTypeOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="movement-quantity">Quantidade</Label>
-                          <Input
-                            id="movement-quantity"
-                            type="number"
-                            step="0.001"
-                            value={movementForm.quantity}
-                            onChange={(event) =>
-                              setMovementForm((current) => ({ ...current, quantity: event.target.value }))
-                            }
-                          />
-                          <p className="text-xs text-slate-500">{movementHelpText(movementForm.movementType)}</p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="movement-reference-type">Tipo de referencia</Label>
-                          <Input
-                            id="movement-reference-type"
-                            list="movement-reference-types"
-                            value={movementForm.referenceType}
-                            onChange={(event) =>
-                              setMovementForm((current) => ({ ...current, referenceType: event.target.value }))
-                            }
-                            placeholder="Ex.: compra, emprestimo, inventario"
-                          />
-                          <datalist id="movement-reference-types">
-                            {movementReferenceSuggestions.map((option) => (
-                              <option key={option} value={option} />
-                            ))}
-                          </datalist>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="movement-reference-code">Codigo de referencia</Label>
-                          <Input
-                            id="movement-reference-code"
-                            value={movementForm.referenceCode}
-                            onChange={(event) =>
-                              setMovementForm((current) => ({ ...current, referenceCode: event.target.value }))
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-2 md:col-span-2">
-                          <Label htmlFor="movement-notes">Observacoes</Label>
-                          <Textarea
-                            id="movement-notes"
-                            value={movementForm.notes}
-                            onChange={(event) =>
-                              setMovementForm((current) => ({ ...current, notes: event.target.value }))
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="movement-occurred-at">Data e hora</Label>
-                          <Input
-                            id="movement-occurred-at"
-                            type="datetime-local"
-                            value={movementForm.occurredAt}
-                            onChange={(event) =>
-                              setMovementForm((current) => ({ ...current, occurredAt: event.target.value }))
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <Button onClick={() => void submitMovement()} disabled={savingMovement}>
-                          {savingMovement ? 'Salvando...' : 'Registrar movimentacao'}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {!activeItem ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                      Selecione um item para ver o historico.
-                    </div>
-                  ) : loadingItemDetails ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                      Carregando movimentacoes...
-                    </div>
-                  ) : movements.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                      Nenhuma movimentacao registrada para este item.
-                    </div>
-                  ) : filteredMovements.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                      Nenhuma movimentacao corresponde aos filtros atuais.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {filteredMovements.map((movement) => (
-                        <div key={movement.id} className="rounded-xl border border-slate-200 p-4">
-                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <div className="font-medium text-slate-900">{movementTypeLabel(movement.movement_type)}</div>
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                                  {movement.quantity_delta > 0 ? 'Credito' : 'Debito'}
-                                </span>
-                                {buildMovementReferenceSummary(movement) ? (
-                                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                                    {buildMovementReferenceSummary(movement)}
-                                  </span>
-                                ) : null}
-                              </div>
-                              <div className="mt-1 text-sm text-slate-600">
-                                Delta: {formatQuantity(movement.quantity_delta, activeItem.unit_label)} · Saldo:{' '}
-                                {formatQuantity(movement.resulting_quantity, activeItem.unit_label)}
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-                                {movement.reference_type ? (
-                                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                                    Tipo ref.: {movement.reference_type}
-                                  </span>
-                                ) : null}
-                                {movement.reference_code ? (
-                                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                                    Codigo: {movement.reference_code}
-                                  </span>
-                                ) : null}
-                              </div>
-                              {movement.notes ? <p className="mt-2 text-sm text-slate-600">{movement.notes}</p> : null}
-                            </div>
-                            <div className="text-xs text-slate-500">{formatDateTime(movement.occurred_at)}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-slate-900">Fotos e anexos</h3>
-                    <p className="text-sm text-slate-500">
-                      Bucket privado com URL assinada. O path sempre comeca pelo ID do item.
-                    </p>
-                  </div>
-
-                  {activeItem ? (
-                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <Filter className="h-4 w-4" />
-                        Organizacao dos anexos
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <select
-                          value={attachmentKindFilter}
-                          onChange={(event) => setAttachmentKindFilter(event.target.value)}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        >
-                          <option value="all">Todos os tipos</option>
-                          {attachmentKindOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="flex items-center text-sm text-slate-500">
-                          {filteredAttachments.length} anexo(s) visivel(is) para o item selecionado.
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {activeItem && canWriteActiveInventory ? (
-                    <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="attachment-file">Arquivo</Label>
-                          <Input
-                            key={attachmentInputKey}
-                            id="attachment-file"
-                            type="file"
-                            onChange={(event) =>
-                              setAttachmentForm((current) => ({
-                                ...current,
-                                file: event.target.files?.[0] || null,
-                              }))
-                            }
-                          />
-                        </div>
-
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="attachment-kind">Tipo</Label>
-                            <select
-                              id="attachment-kind"
-                              value={attachmentForm.kind}
-                              onChange={(event) =>
-                                setAttachmentForm((current) => ({ ...current, kind: event.target.value }))
-                              }
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            >
-                              {attachmentKindOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="attachment-caption">Legenda</Label>
-                            <Input
-                              id="attachment-caption"
-                              value={attachmentForm.caption}
-                              onChange={(event) =>
-                                setAttachmentForm((current) => ({ ...current, caption: event.target.value }))
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={attachmentForm.isCover}
-                            onChange={(event) =>
-                              setAttachmentForm((current) => ({ ...current, isCover: event.target.checked }))
-                            }
-                            className="h-4 w-4 rounded border-gray-300 text-blue-600"
-                          />
-                          Definir como capa do item
-                        </label>
-
-                        <Button onClick={() => void submitAttachment()} disabled={savingAttachment}>
-                          {savingAttachment ? 'Enviando...' : 'Enviar anexo'}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {!activeItem ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                      Selecione um item para listar anexos.
-                    </div>
-                  ) : loadingItemDetails ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                      Carregando anexos...
-                    </div>
-                  ) : attachments.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                      Nenhum anexo vinculado a este item.
-                    </div>
-                  ) : filteredAttachments.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                      Nenhum anexo corresponde ao filtro atual.
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {Object.entries(groupedAttachments).map(([kind, attachmentGroup]) => (
-                        <div key={kind} className="space-y-3">
-                          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between">
-                            <div>
-                              <div className="text-sm font-semibold text-slate-900">{attachmentKindLabel(kind)}</div>
-                              <div className="text-xs text-slate-500">{attachmentGroup.length} arquivo(s) neste grupo.</div>
-                            </div>
-                            <Button variant="outline" size="sm" onClick={() => void downloadAttachmentGroup(attachmentGroup)}>
-                              <Download className="mr-2 h-4 w-4" />
-                              Baixar grupo
-                            </Button>
-                          </div>
-
-                          {attachmentGroup.map((attachment) => (
-                            <div key={attachment.id} className="rounded-xl border border-slate-200 p-4">
-                              {attachment.kind === 'image' && attachment.signedUrl ? (
-                                <img
-                                  src={attachment.signedUrl}
-                                  alt={attachment.caption || attachment.file_name}
-                                  className="mb-3 h-40 w-full rounded-lg object-cover"
-                                />
-                              ) : (
-                                <div className="mb-3 flex h-32 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                                  <Image className="mr-2 h-5 w-5" />
-                                  {attachment.kind}
-                                </div>
-                              )}
-
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="font-medium text-slate-900">{attachment.file_name}</div>
-                                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
-                                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                                      {attachmentKindLabel(attachment.kind)}
-                                    </span>
-                                    {attachment.is_cover ? (
-                                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
-                                        Capa
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  {attachment.caption ? (
-                                    <p className="mt-2 text-sm text-slate-600">{attachment.caption}</p>
-                                  ) : null}
-                                  <div className="mt-2 break-all text-xs text-slate-500">
-                                    Path: {attachment.bucket_path}
-                                  </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button variant="outline" size="sm" onClick={() => void downloadAttachment(attachment)}>
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Baixar
-                                  </Button>
-                                  {canWriteActiveInventory ? (
-                                    <>
-                                      {!attachment.is_cover ? (
-                                        <Button variant="outline" size="sm" onClick={() => void setAttachmentAsCover(attachment)}>
-                                          Definir capa
-                                        </Button>
-                                      ) : null}
-                                      <Button variant="destructive" size="sm" onClick={() => void deleteAttachment(attachment)}>
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Remover
-                                      </Button>
-                                    </>
-                                  ) : null}
-                                </div>
-                              </div>
-
-                              {attachment.signedUrl ? (
-                                <a
-                                  href={attachment.signedUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-3 inline-flex text-sm font-medium text-blue-700 hover:text-blue-900"
-                                >
-                                  Abrir arquivo
-                                </a>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              ) : null}
             </div>
           </div>
         </div>
