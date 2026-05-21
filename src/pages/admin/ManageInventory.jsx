@@ -5,9 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Boxes,
-  Download,
   Filter,
-  History,
   Image,
   Pencil,
   Plus,
@@ -121,6 +119,7 @@ const createEmptyItemForm = () => ({
   itemType: 'consumable',
   trackingMode: 'quantity',
   unitLabel: 'un',
+  currentQuantity: '0',
   minimumQuantity: '0',
   idealQuantity: '',
   locationText: '',
@@ -131,6 +130,9 @@ const createEmptyItemForm = () => ({
   acquisitionDate: '',
   acquisitionCost: '',
   isActive: true,
+  photoFile: null,
+  photoPreviewUrl: '',
+  removePhoto: false,
 });
 
 const createEmptyMovementForm = () => ({
@@ -192,6 +194,19 @@ const formatDateTime = (value) => {
     return value;
   }
 };
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    if (!file) {
+      resolve('');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(reader.error || new Error('Nao foi possivel ler a imagem.'));
+    reader.readAsDataURL(file);
+  });
 
 const attachmentKindLabel = (kind) =>
   attachmentKindOptions.find((option) => option.value === kind)?.label || kind;
@@ -384,7 +399,7 @@ const ItemFormDialog = ({
   mode,
   formState,
   setFormState,
-  currentQuantity,
+  photoInputKey,
   onSubmit,
   saving,
 }) => (
@@ -394,7 +409,7 @@ const ItemFormDialog = ({
         <DialogHeader className="shrink-0 border-b px-4 pb-4 pt-5 pr-14 sm:px-6 sm:pb-5 sm:pt-6 sm:pr-16">
           <DialogTitle>{mode === 'create' ? 'Novo item' : 'Editar item'}</DialogTitle>
           <DialogDescription>
-            O saldo atual e controlado pelas movimentacoes. Ajustes de quantidade devem ser feitos no historico.
+            Cadastre a quantidade manualmente e, se quiser, adicione uma foto para identificacao visual do item.
           </DialogDescription>
         </DialogHeader>
 
@@ -430,6 +445,66 @@ const ItemFormDialog = ({
               />
             </div>
 
+            <div className="space-y-3 md:col-span-2">
+              <Label htmlFor="item-photo">Foto do item</Label>
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                {formState.photoPreviewUrl ? (
+                  <img
+                    src={formState.photoPreviewUrl}
+                    alt={formState.name || 'Foto do item'}
+                    className="h-48 w-full rounded-xl object-cover sm:h-64"
+                  />
+                ) : (
+                  <div className="flex h-40 w-full items-center justify-center rounded-xl bg-white text-sm text-slate-500">
+                    Nenhuma foto selecionada.
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <Input
+                    key={photoInputKey}
+                    id="item-photo"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0] || null;
+                      if (!file) return;
+
+                      const previewUrl = await readFileAsDataUrl(file);
+                      setFormState((current) => ({
+                        ...current,
+                        photoFile: file,
+                        photoPreviewUrl: previewUrl,
+                        removePhoto: false,
+                      }));
+                    }}
+                  />
+
+                  {formState.photoPreviewUrl ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setFormState((current) => ({
+                          ...current,
+                          photoFile: null,
+                          photoPreviewUrl: '',
+                          removePhoto: true,
+                        }))
+                      }
+                    >
+                      Remover foto
+                    </Button>
+                  ) : null}
+                </div>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  No celular, voce pode tirar a foto na hora. No desktop, pode carregar uma imagem existente.
+                </p>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="item-type">Tipo</Label>
               <select
@@ -439,24 +514,6 @@ const ItemFormDialog = ({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 {itemTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tracking-mode">Rastreamento</Label>
-              <select
-                id="tracking-mode"
-                value={formState.trackingMode}
-                onChange={(event) =>
-                  setFormState((current) => ({ ...current, trackingMode: event.target.value }))
-                }
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                {trackingModeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -492,34 +549,16 @@ const ItemFormDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="minimum-quantity">Estoque minimo</Label>
+              <Label htmlFor="current-quantity">Quantidade</Label>
               <Input
-                id="minimum-quantity"
+                id="current-quantity"
                 type="number"
                 step="0.001"
-                value={formState.minimumQuantity}
+                value={formState.currentQuantity}
                 onChange={(event) =>
-                  setFormState((current) => ({ ...current, minimumQuantity: event.target.value }))
+                  setFormState((current) => ({ ...current, currentQuantity: event.target.value }))
                 }
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ideal-quantity">Estoque ideal</Label>
-              <Input
-                id="ideal-quantity"
-                type="number"
-                step="0.001"
-                value={formState.idealQuantity}
-                onChange={(event) =>
-                  setFormState((current) => ({ ...current, idealQuantity: event.target.value }))
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="current-quantity">Saldo atual</Label>
-              <Input id="current-quantity" value={currentQuantity} readOnly disabled />
             </div>
 
             <div className="space-y-2">
@@ -638,6 +677,7 @@ const ManageInventory = () => {
   const [itemForm, setItemForm] = useState(createEmptyItemForm());
   const [editingItemId, setEditingItemId] = useState(null);
   const [savingItem, setSavingItem] = useState(false);
+  const [itemPhotoInputKey, setItemPhotoInputKey] = useState(0);
 
   const [savingMovement, setSavingMovement] = useState(false);
   const [movementForm, setMovementForm] = useState(createEmptyMovementForm());
@@ -676,16 +716,12 @@ const ManageInventory = () => {
     [items, selectedItemId]
   );
 
-  const lowStockCount = useMemo(
-    () =>
-      items.filter(
-        (item) =>
-          item.is_active &&
-          Number(item.minimum_quantity || 0) > 0 &&
-          Number(item.current_quantity || 0) <= Number(item.minimum_quantity || 0)
-      ).length,
-    [items]
+  const coverPhotoAttachment = useMemo(
+    () => attachments.find((attachment) => attachment.is_cover) || attachments[0] || null,
+    [attachments]
   );
+
+  const activeItemsCount = useMemo(() => items.filter((item) => item.is_active).length, [items]);
 
   const filteredInventories = useMemo(() => {
     const query = normalizeSearch(inventorySearch);
@@ -717,14 +753,10 @@ const ManageInventory = () => {
           .some((value) => normalizeSearch(value).includes(query));
 
       const matchesType = itemTypeFilter === 'all' || item.item_type === itemTypeFilter;
-      const isLowStock =
-        Number(item.minimum_quantity || 0) > 0 &&
-        Number(item.current_quantity || 0) <= Number(item.minimum_quantity || 0);
       const matchesStatus =
         itemStatusFilter === 'all' ||
         (itemStatusFilter === 'active' && item.is_active) ||
-        (itemStatusFilter === 'inactive' && !item.is_active) ||
-        (itemStatusFilter === 'low_stock' && isLowStock);
+        (itemStatusFilter === 'inactive' && !item.is_active);
 
       return matchesQuery && matchesType && matchesStatus;
     });
@@ -990,6 +1022,91 @@ const ManageInventory = () => {
     }
   };
 
+  const loadItemImageAttachments = async (itemId) => {
+    const { data, error } = await supabase
+      .from('inventory_item_attachments')
+      .select('*')
+      .eq('inventory_item_id', itemId)
+      .eq('kind', 'image')
+      .order('is_cover', { ascending: false })
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    return Promise.all(
+      (data || []).map(async (attachment) => {
+        try {
+          const signedUrl = await getInventorySignedUrl(attachment.bucket_path);
+          return { ...attachment, signedUrl };
+        } catch {
+          return { ...attachment, signedUrl: null };
+        }
+      })
+    );
+  };
+
+  const removeItemImageAttachments = async (imageAttachments = []) => {
+    if (!imageAttachments.length) return;
+
+    const { error } = await supabase
+      .from('inventory_item_attachments')
+      .delete()
+      .in(
+        'id',
+        imageAttachments.map((attachment) => attachment.id)
+      );
+
+    if (error) throw error;
+
+    await Promise.allSettled(
+      imageAttachments
+        .map((attachment) => attachment.bucket_path)
+        .filter(Boolean)
+        .map((bucketPath) => removeInventoryStorageObject(bucketPath))
+    );
+  };
+
+  const syncItemPhoto = async (itemId, photoFile, removePhoto) => {
+    const existingImages = await loadItemImageAttachments(itemId);
+    const shouldRemoveExistingImages = removePhoto || Boolean(photoFile);
+
+    let uploadedPath = null;
+
+    try {
+      if (photoFile) {
+        uploadedPath = await uploadInventoryAttachmentFile({
+          inventoryItemId: itemId,
+          file: photoFile,
+        });
+      }
+
+      if (shouldRemoveExistingImages) {
+        await removeItemImageAttachments(existingImages);
+      }
+
+      if (photoFile && uploadedPath) {
+        const { error } = await supabase.from('inventory_item_attachments').insert({
+          inventory_item_id: itemId,
+          bucket_id: 'inventory-media',
+          bucket_path: uploadedPath,
+          file_name: photoFile.name,
+          mime_type: photoFile.type || null,
+          file_size_bytes: photoFile.size || null,
+          kind: 'image',
+          caption: null,
+          is_cover: true,
+        });
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      if (uploadedPath) {
+        await Promise.allSettled([removeInventoryStorageObject(uploadedPath)]);
+      }
+      throw error;
+    }
+  };
+
   const loadItemDetails = async (itemId) => {
     if (!itemId || !isSupabaseReady) {
       setMovements([]);
@@ -999,41 +1116,13 @@ const ManageInventory = () => {
 
     setLoadingItemDetails(true);
     try {
-      const [movementResponse, attachmentResponse] = await Promise.all([
-        supabase
-          .from('inventory_movements')
-          .select('*')
-          .eq('inventory_item_id', itemId)
-          .order('occurred_at', { ascending: false })
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('inventory_item_attachments')
-          .select('*')
-          .eq('inventory_item_id', itemId)
-          .order('is_cover', { ascending: false })
-          .order('created_at', { ascending: true }),
-      ]);
-
-      if (movementResponse.error) throw movementResponse.error;
-      if (attachmentResponse.error) throw attachmentResponse.error;
-
-      const attachmentsWithUrls = await Promise.all(
-        (attachmentResponse.data || []).map(async (attachment) => {
-          try {
-            const signedUrl = await getInventorySignedUrl(attachment.bucket_path);
-            return { ...attachment, signedUrl };
-          } catch {
-            return { ...attachment, signedUrl: null };
-          }
-        })
-      );
-
-      setMovements(movementResponse.data || []);
-      setAttachments(attachmentsWithUrls);
+      const imageAttachments = await loadItemImageAttachments(itemId);
+      setMovements([]);
+      setAttachments(imageAttachments);
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Nao foi possivel carregar movimentos e anexos do item.'),
+        description: formatInventoryError(error, 'Nao foi possivel carregar a foto do item.'),
         variant: 'destructive',
       });
       setMovements([]);
@@ -1285,12 +1374,14 @@ const ManageInventory = () => {
     setItemDialogMode('create');
     setEditingItemId(null);
     setItemForm(createEmptyItemForm());
+    setItemPhotoInputKey((current) => current + 1);
     setItemDialogOpen(true);
   };
 
-  const openEditItemDialog = (item) => {
+  const openEditItemDialog = async (item) => {
     setItemDialogMode('edit');
     setEditingItemId(item.id);
+    setSelectedItemId(item.id);
     setItemForm({
       sku: item.sku || '',
       name: item.name || '',
@@ -1298,6 +1389,7 @@ const ManageInventory = () => {
       itemType: item.item_type || 'consumable',
       trackingMode: item.tracking_mode || 'quantity',
       unitLabel: item.unit_label || 'un',
+      currentQuantity: String(item.current_quantity ?? 0),
       minimumQuantity: String(item.minimum_quantity ?? 0),
       idealQuantity: item.ideal_quantity ?? '',
       locationText: item.location_text || '',
@@ -1308,8 +1400,24 @@ const ManageInventory = () => {
       acquisitionDate: item.acquisition_date || '',
       acquisitionCost: item.acquisition_cost ?? '',
       isActive: Boolean(item.is_active),
+      photoFile: null,
+      photoPreviewUrl: '',
+      removePhoto: false,
     });
+    setItemPhotoInputKey((current) => current + 1);
     setItemDialogOpen(true);
+
+    try {
+      const imageAttachments = await loadItemImageAttachments(item.id);
+      const coverPhoto = imageAttachments.find((attachment) => attachment.is_cover) || imageAttachments[0] || null;
+
+      setItemForm((current) => ({
+        ...current,
+        photoPreviewUrl: coverPhoto?.signedUrl || '',
+      }));
+    } catch {
+      // keep form available even if photo loading fails
+    }
   };
 
   const saveItem = async () => {
@@ -1348,8 +1456,9 @@ const ManageInventory = () => {
         name: itemForm.name.trim(),
         description: trimOrNull(itemForm.description),
         item_type: itemForm.itemType,
-        tracking_mode: itemForm.trackingMode,
+        tracking_mode: 'quantity',
         unit_label: trimOrNull(itemForm.unitLabel) || 'un',
+        current_quantity: parseNumberOrZero(itemForm.currentQuantity),
         minimum_quantity: parseNumberOrZero(itemForm.minimumQuantity),
         ideal_quantity: parseNumberOrNull(itemForm.idealQuantity),
         location_text: trimOrNull(itemForm.locationText),
@@ -1383,8 +1492,16 @@ const ManageInventory = () => {
         if (error) throw error;
       }
 
+      if (savedItemId && (itemForm.photoFile || itemForm.removePhoto)) {
+        await syncItemPhoto(savedItemId, itemForm.photoFile, itemForm.removePhoto);
+      }
+
       await loadItems(selectedInventoryId);
+      if (savedItemId) {
+        await loadItemDetails(savedItemId);
+      }
       setItemDialogOpen(false);
+      setItemPhotoInputKey((current) => current + 1);
 
       if (savedItemId) {
         setSelectedItemId(savedItemId);
@@ -1685,7 +1802,7 @@ const ManageInventory = () => {
         <title>Inventario - Paroquia de Nossa Senhora da Conceicao</title>
         <meta
           name="description"
-          content="Controle de inventarios, itens, movimentacoes e anexos por unidade institucional."
+          content="Lista de itens por unidade institucional, com quantidade manual e foto de identificacao."
         />
       </Helmet>
 
@@ -1706,7 +1823,7 @@ const ManageInventory = () => {
         mode={itemDialogMode}
         formState={itemForm}
         setFormState={setItemForm}
-        currentQuantity={activeItem ? formatQuantity(activeItem.current_quantity, activeItem.unit_label) : '-'}
+        photoInputKey={itemPhotoInputKey}
         onSubmit={saveItem}
         saving={savingItem}
       />
@@ -1722,7 +1839,7 @@ const ManageInventory = () => {
               <div>
                 <h1 className="text-4xl font-bold tracking-tight md:text-5xl">Inventario</h1>
                 <p className="mt-3 max-w-3xl text-base text-slate-200 md:text-lg">
-                  Controle inventarios por unidade, saldo atual, historico de movimentacoes e fotos/anexos em bucket privado.
+                  Lista de itens por unidade, com quantidade manual e foto para identificacao visual.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -1758,8 +1875,8 @@ const ManageInventory = () => {
               <div className="mt-2 text-3xl font-bold text-slate-900">{items.length}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm font-medium text-slate-500">Itens em atencao</div>
-              <div className="mt-2 text-3xl font-bold text-amber-600">{lowStockCount}</div>
+              <div className="text-sm font-medium text-slate-500">Itens ativos</div>
+              <div className="mt-2 text-3xl font-bold text-emerald-600">{activeItemsCount}</div>
             </div>
           </div>
 
@@ -1914,7 +2031,7 @@ const ManageInventory = () => {
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">Itens</h3>
                     <p className="text-sm text-slate-500">
-                      Cadastro de patrimonio, consumo e documentos vinculados ao inventario.
+                      Cadastro simples de itens do grupo, com quantidade e foto de identificacao.
                     </p>
                   </div>
                   {activeInventory && canWriteActiveInventory ? (
@@ -1955,10 +2072,9 @@ const ManageInventory = () => {
                         onChange={(event) => setItemStatusFilter(event.target.value)}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       >
-                        <option value="all">Todos os estados</option>
-                        <option value="active">Apenas ativos</option>
-                        <option value="inactive">Apenas inativos</option>
-                        <option value="low_stock">Apenas estoque baixo</option>
+                        <option value="all">Todos os registros</option>
+                        <option value="active">Somente ativos</option>
+                        <option value="inactive">Somente inativos</option>
                       </select>
                     </div>
                   </div>
@@ -1987,8 +2103,8 @@ const ManageInventory = () => {
                         <tr>
                           <th className="px-4 py-3">Item</th>
                           <th className="px-4 py-3">Tipo</th>
-                          <th className="px-4 py-3">Saldo</th>
-                          <th className="px-4 py-3">Minimo</th>
+                          <th className="px-4 py-3">Quantidade</th>
+                          <th className="px-4 py-3">Estado</th>
                           <th className="px-4 py-3">Localizacao</th>
                           <th className="px-4 py-3 text-right">Acoes</th>
                         </tr>
@@ -1996,9 +2112,6 @@ const ManageInventory = () => {
                       <tbody>
                         {filteredItems.map((item) => {
                           const isSelected = item.id === selectedItemId;
-                          const isLowStock =
-                            Number(item.minimum_quantity || 0) > 0 &&
-                            Number(item.current_quantity || 0) <= Number(item.minimum_quantity || 0);
 
                           return (
                             <tr
@@ -2022,23 +2135,19 @@ const ManageInventory = () => {
                                 {itemTypeOptions.find((option) => option.value === item.item_type)?.label || item.item_type}
                               </td>
                               <td className="px-4 py-4">
-                                <span className={isLowStock ? 'font-semibold text-amber-700' : 'text-slate-700'}>
-                                  {formatQuantity(item.current_quantity, item.unit_label)}
-                                </span>
+                                <span className="text-slate-700">{formatQuantity(item.current_quantity, item.unit_label)}</span>
                               </td>
                               <td className="px-4 py-4 text-slate-600">
-                                {formatQuantity(item.minimum_quantity, item.unit_label)}
+                                {conditionStatusOptions.find((option) => option.value === item.condition_status)?.label ||
+                                  item.condition_status}
                               </td>
                               <td className="px-4 py-4 text-slate-600">{item.location_text || '-'}</td>
                               <td className="px-4 py-4">
                                 <div className="flex justify-end gap-2">
                                   {canWriteActiveInventory ? (
                                     <>
-                                      <Button variant="outline" size="icon" onClick={() => openEditItemDialog(item)}>
+                                      <Button variant="outline" size="icon" onClick={() => void openEditItemDialog(item)}>
                                         <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button variant="outline" size="icon" onClick={() => setSelectedItemId(item.id)}>
-                                        <History className="h-4 w-4" />
                                       </Button>
                                       <Button variant="destructive" size="icon" onClick={() => void deleteItem(item)}>
                                         <Trash2 className="h-4 w-4" />
@@ -2046,7 +2155,7 @@ const ManageInventory = () => {
                                     </>
                                   ) : (
                                     <Button variant="outline" size="icon" onClick={() => setSelectedItemId(item.id)}>
-                                      <History className="h-4 w-4" />
+                                      <Image className="h-4 w-4" />
                                     </Button>
                                   )}
                                 </div>
@@ -2060,6 +2169,136 @@ const ManageInventory = () => {
                 )}
               </div>
 
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-slate-900">Resumo do item</h3>
+                    <p className="text-sm text-slate-500">
+                      {activeItem ? `Detalhes do item ${activeItem.name}.` : 'Selecione um item para ver os detalhes.'}
+                    </p>
+                  </div>
+
+                  {!activeItem ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Selecione um item para visualizar as informacoes principais.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quantidade</div>
+                          <div className="mt-2 text-xl font-semibold text-slate-900">
+                            {formatQuantity(activeItem.current_quantity, activeItem.unit_label)}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</div>
+                          <div className="mt-2 text-base font-semibold text-slate-900">
+                            {conditionStatusOptions.find((option) => option.value === activeItem.condition_status)?.label ||
+                              activeItem.condition_status}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo</div>
+                          <div className="mt-2 text-base font-semibold text-slate-900">
+                            {itemTypeOptions.find((option) => option.value === activeItem.item_type)?.label ||
+                              activeItem.item_type}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-xl border border-slate-200 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Localizacao</div>
+                          <div className="mt-2 text-sm text-slate-700">{activeItem.location_text || '-'}</div>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Marca e modelo</div>
+                          <div className="mt-2 text-sm text-slate-700">
+                            {[activeItem.brand, activeItem.model].filter(Boolean).join(' · ') || '-'}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Serial</div>
+                          <div className="mt-2 text-sm text-slate-700">{activeItem.serial_number || '-'}</div>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Data de aquisicao</div>
+                          <div className="mt-2 text-sm text-slate-700">{activeItem.acquisition_date || '-'}</div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 p-4">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Descricao</div>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          {activeItem.description || 'Sem descricao cadastrada.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-slate-900">Foto do item</h3>
+                    <p className="text-sm text-slate-500">
+                      Uma foto principal para identificacao visual. Edite o item para trocar, adicionar ou remover.
+                    </p>
+                  </div>
+
+                  {!activeItem ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Selecione um item para visualizar a foto.
+                    </div>
+                  ) : loadingItemDetails ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+                      Carregando foto...
+                    </div>
+                  ) : coverPhotoAttachment?.signedUrl ? (
+                    <div className="space-y-4">
+                      <img
+                        src={coverPhotoAttachment.signedUrl}
+                        alt={activeItem.name}
+                        className="h-72 w-full rounded-2xl border border-slate-200 object-cover"
+                      />
+                      <div className="text-xs text-slate-500">{coverPhotoAttachment.file_name || 'Foto do item'}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <a
+                          href={coverPhotoAttachment.signedUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Abrir foto
+                        </a>
+                        {canWriteActiveInventory ? (
+                          <Button variant="outline" onClick={() => void openEditItemDialog(activeItem)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Trocar foto
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex h-72 w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-slate-500">
+                        <div className="flex flex-col items-center gap-3 text-center">
+                          <Image className="h-8 w-8" />
+                          <div className="text-sm">Nenhuma foto cadastrada para este item.</div>
+                        </div>
+                      </div>
+                      {canWriteActiveInventory ? (
+                        <Button variant="outline" onClick={() => void openEditItemDialog(activeItem)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Adicionar foto
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {false ? (
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4">
@@ -2460,6 +2699,7 @@ const ManageInventory = () => {
                   )}
                 </div>
               </div>
+              ) : null}
             </div>
           </div>
         </div>
