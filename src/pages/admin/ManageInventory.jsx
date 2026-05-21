@@ -616,7 +616,7 @@ const ManageInventory = () => {
   const { inventoryId: inventoryIdParam } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, hasModuleAccess } = useAuth();
+  const { user, hasModuleAccess, refreshProfile } = useAuth();
 
   const [inventories, setInventories] = useState([]);
   const [availableOrgUnits, setAvailableOrgUnits] = useState([]);
@@ -776,6 +776,46 @@ const ManageInventory = () => {
     activeInventory &&
       (user?.role === 'admin' || (canAdminInventory && writableOrgUnitIds.has(activeInventory.org_unit_id)))
   );
+
+  const ensureSupabaseWriteSession = async () => {
+    const [{ data: sessionData, error: sessionError }, { data: userData, error: userError }] = await Promise.all([
+      supabase.auth.getSession(),
+      supabase.auth.getUser(),
+    ]);
+
+    if (sessionError) throw sessionError;
+    if (userError) throw userError;
+
+    const sessionUser = sessionData?.session?.user || null;
+    const authUser = userData?.user || sessionUser;
+
+    if (!authUser?.id) {
+      throw new Error('Sua sessao expirou. Entre novamente para continuar.');
+    }
+
+    if (user?.id && authUser.id !== user.id) {
+      await refreshProfile?.();
+      throw new Error(
+        'A sessao autenticada do navegador nao corresponde ao perfil carregado nesta tela. Saia e entre novamente.'
+      );
+    }
+
+    return authUser;
+  };
+
+  const buildUnexpectedWritePolicyMessage = (resourceLabel, error, context = {}) => {
+    console.error('Inventory write denied despite local permissions', {
+      resourceLabel,
+      localUserId: user?.id || null,
+      localUserEmail: user?.email || null,
+      selectedInventoryId,
+      activeInventoryId: activeInventory?.id || null,
+      context,
+      error,
+    });
+
+    return `O banco negou a gravacao de ${resourceLabel} embora a tela indique permissao de escrita. Isso normalmente aponta sessao divergente no navegador. Saia e entre novamente. Se persistir, publique o frontend mais recente e recarregue sem cache.`;
+  };
 
   const loadAvailableOrgUnits = async () => {
     if (user?.role === 'admin') {
@@ -1064,6 +1104,8 @@ const ManageInventory = () => {
 
     setSavingInventory(true);
     try {
+      await ensureSupabaseWriteSession();
+
       const payload = {
         org_unit_id: inventoryForm.orgUnitId,
         name: inventoryForm.name.trim(),
@@ -1102,7 +1144,10 @@ const ManageInventory = () => {
       toast({
         title: 'Erro',
         description: isInventoryWritePolicyError(error)
-          ? 'Seu usuario nao pode criar inventario nesta unidade. Verifique se o modulo inventory esta habilitado em org_unit_module_settings e se voce tem vinculo com permissao de escrita nela.'
+          ? buildUnexpectedWritePolicyMessage('inventarios', error, {
+              inventoryDialogMode,
+              orgUnitId: inventoryForm.orgUnitId,
+            })
           : formatInventoryError(error, 'Nao foi possivel salvar o inventario.'),
         variant: 'destructive',
       });
@@ -1117,6 +1162,8 @@ const ManageInventory = () => {
     }
 
     try {
+      await ensureSupabaseWriteSession();
+
       const { error } = await supabase.from('inventories').delete().eq('id', inventory.id);
       if (error) throw error;
 
@@ -1131,10 +1178,14 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(
-          error,
-          'Nao foi possivel excluir o inventario. Se houver itens vinculados, remova-os antes.'
-        ),
+        description: isInventoryWritePolicyError(error)
+          ? buildUnexpectedWritePolicyMessage('inventarios', error, {
+              inventoryId: inventory.id,
+            })
+          : formatInventoryError(
+              error,
+              'Nao foi possivel excluir o inventario. Se houver itens vinculados, remova-os antes.'
+            ),
         variant: 'destructive',
       });
     }
@@ -1203,6 +1254,8 @@ const ManageInventory = () => {
 
     setSavingItem(true);
     try {
+      await ensureSupabaseWriteSession();
+
       const payload = {
         inventory_id: selectedInventoryId,
         sku: trimOrNull(itemForm.sku),
@@ -1249,7 +1302,11 @@ const ManageInventory = () => {
       toast({
         title: 'Erro',
         description: isInventoryWritePolicyError(error)
-          ? 'Seu usuario nao pode gravar itens neste inventario. Verifique se o modulo inventory esta habilitado para a unidade e se voce tem permissao de escrita nela.'
+          ? buildUnexpectedWritePolicyMessage('itens', error, {
+              itemDialogMode,
+              inventoryId: selectedInventoryId,
+              editingItemId,
+            })
           : formatInventoryError(error, 'Nao foi possivel salvar o item.'),
         variant: 'destructive',
       });
@@ -1264,6 +1321,8 @@ const ManageInventory = () => {
     }
 
     try {
+      await ensureSupabaseWriteSession();
+
       const { error } = await supabase.from('inventory_items').delete().eq('id', item.id);
       if (error) throw error;
 
@@ -1277,10 +1336,14 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(
-          error,
-          'Nao foi possivel excluir o item. Se houver historico de movimentacoes, o item deve permanecer.'
-        ),
+        description: isInventoryWritePolicyError(error)
+          ? buildUnexpectedWritePolicyMessage('itens', error, {
+              itemId: item.id,
+            })
+          : formatInventoryError(
+              error,
+              'Nao foi possivel excluir o item. Se houver historico de movimentacoes, o item deve permanecer.'
+            ),
         variant: 'destructive',
       });
     }
@@ -1301,6 +1364,8 @@ const ManageInventory = () => {
 
     setSavingMovement(true);
     try {
+      await ensureSupabaseWriteSession();
+
       const { error } = await supabase.from('inventory_movements').insert({
         inventory_item_id: activeItem.id,
         movement_type: movementForm.movementType,
@@ -1319,7 +1384,11 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Nao foi possivel registrar a movimentacao.'),
+        description: isInventoryWritePolicyError(error)
+          ? buildUnexpectedWritePolicyMessage('movimentacoes', error, {
+              inventoryItemId: activeItem.id,
+            })
+          : formatInventoryError(error, 'Nao foi possivel registrar a movimentacao.'),
         variant: 'destructive',
       });
     } finally {
@@ -1353,6 +1422,8 @@ const ManageInventory = () => {
     let uploadedPath = null;
 
     try {
+      await ensureSupabaseWriteSession();
+
       const shouldSetCover = attachmentForm.isCover || attachments.length === 0;
       await clearExistingCoverIfNeeded(shouldSetCover);
 
@@ -1390,7 +1461,12 @@ const ManageInventory = () => {
 
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Nao foi possivel enviar o anexo.'),
+        description: isInventoryWritePolicyError(error)
+          ? buildUnexpectedWritePolicyMessage('anexos', error, {
+              inventoryItemId: activeItem.id,
+              uploadedPath,
+            })
+          : formatInventoryError(error, 'Nao foi possivel enviar o anexo.'),
         variant: 'destructive',
       });
     } finally {
@@ -1402,6 +1478,8 @@ const ManageInventory = () => {
     if (!activeItem) return;
 
     try {
+      await ensureSupabaseWriteSession();
+
       await clearExistingCoverIfNeeded(true);
 
       const { error } = await supabase
@@ -1416,7 +1494,11 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Nao foi possivel atualizar a capa do item.'),
+        description: isInventoryWritePolicyError(error)
+          ? buildUnexpectedWritePolicyMessage('anexos', error, {
+              attachmentId: attachment.id,
+            })
+          : formatInventoryError(error, 'Nao foi possivel atualizar a capa do item.'),
         variant: 'destructive',
       });
     }
@@ -1428,6 +1510,8 @@ const ManageInventory = () => {
     }
 
     try {
+      await ensureSupabaseWriteSession();
+
       const { error } = await supabase.from('inventory_item_attachments').delete().eq('id', attachment.id);
       if (error) throw error;
 
@@ -1445,7 +1529,11 @@ const ManageInventory = () => {
     } catch (error) {
       toast({
         title: 'Erro',
-        description: formatInventoryError(error, 'Nao foi possivel remover o anexo.'),
+        description: isInventoryWritePolicyError(error)
+          ? buildUnexpectedWritePolicyMessage('anexos', error, {
+              attachmentId: attachment.id,
+            })
+          : formatInventoryError(error, 'Nao foi possivel remover o anexo.'),
         variant: 'destructive',
       });
     }
