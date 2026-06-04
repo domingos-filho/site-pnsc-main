@@ -19,6 +19,10 @@ const PrivateRoute = ({ children, requiredRole, requiredModule, requiredModulePe
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (user.requiresPasswordChange && location.pathname !== '/dashboard/password') {
+    return <Navigate to="/dashboard/password" state={{ from: location }} replace />;
+  }
+
   if (requiredRole) {
     const requiredRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
 

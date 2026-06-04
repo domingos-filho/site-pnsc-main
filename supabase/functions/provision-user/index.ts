@@ -316,6 +316,10 @@ Deno.serve(async (request) => {
 
     const redirectTo = deliveryMode === 'invite' ? normalizeText(getEnv('SITE_URL')) : '';
     const temporaryPassword = deliveryMode === 'temporary_password' ? generateTemporaryPassword() : null;
+    const authUserMetadata = {
+      name: displayName,
+      must_change_password: deliveryMode === 'temporary_password',
+    };
 
     let createdUserId: string | null = null;
 
@@ -323,14 +327,14 @@ Deno.serve(async (request) => {
       const authResult =
         deliveryMode === 'invite'
           ? await adminClient.auth.admin.inviteUserByEmail(email, {
-              data: { name: displayName },
+              data: authUserMetadata,
               ...(redirectTo ? { redirectTo } : {}),
             })
           : await adminClient.auth.admin.createUser({
               email,
               password: temporaryPassword!,
               email_confirm: true,
-              user_metadata: { name: displayName },
+              user_metadata: authUserMetadata,
             });
 
       if (authResult.error || !authResult.data.user?.id) {

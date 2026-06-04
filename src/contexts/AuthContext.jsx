@@ -46,6 +46,8 @@ const withTimeout = (promise, ms, message) => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 };
 
+const isInvalidCredentialsError = (message = '') => /invalid login credentials/i.test(message);
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -94,6 +96,7 @@ const mapUser = (authUser, profile) => {
     email: authUser.email,
     name: profile?.name || getFallbackName(authUser),
     role: profile?.role || 'member',
+    requiresPasswordChange: Boolean(authUser.user_metadata?.must_change_password),
     orgUnits,
     moduleAccess,
     accessibleModules: moduleAccess
@@ -251,10 +254,12 @@ export const AuthProvider = ({ children }) => {
             : 'Usuário não autorizado. Contate a PASCOM.',
         };
       }
-      setUser(mapUser(sessionUser, profile));
+      const mappedUser = mapUser(sessionUser, profile);
+      setUser(mappedUser);
+      return { success: true, requiresPasswordChange: mappedUser.requiresPasswordChange };
     }
 
-    return { success: true };
+    return { success: true, requiresPasswordChange: false };
   };
 
   const logout = async () => {
@@ -262,6 +267,77 @@ export const AuthProvider = ({ children }) => {
       await supabase.auth.signOut();
     }
     setUser(null);
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    if (!user || !isSupabaseReady) {
+      return { success: false, error: 'Sessao invalida para trocar a senha.' };
+    }
+
+    let verifiedUser = null;
+
+    try {
+      const verifyResponse = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: user.email,
+          password: currentPassword,
+        }),
+        REQUEST_TIMEOUT_MS,
+        'Tempo limite ao validar a senha atual.'
+      );
+
+      if (verifyResponse.error) {
+        return {
+          success: false,
+          error: isInvalidCredentialsError(verifyResponse.error.message)
+            ? 'A senha atual esta incorreta.'
+            : verifyResponse.error.message,
+        };
+      }
+
+      verifiedUser = verifyResponse.data?.user || null;
+    } catch (error) {
+      return { success: false, error: error?.message || 'Nao foi possivel validar a senha atual.' };
+    }
+
+    try {
+      const updateResponse = await withTimeout(
+        supabase.auth.updateUser({
+          password: newPassword,
+          data: {
+            ...(verifiedUser?.user_metadata || {}),
+            must_change_password: false,
+          },
+        }),
+        REQUEST_TIMEOUT_MS,
+        'Tempo limite ao atualizar a senha.'
+      );
+
+      if (updateResponse.error) {
+        return { success: false, error: updateResponse.error.message };
+      }
+
+      const nextAuthUser = updateResponse.data?.user || verifiedUser;
+      if (nextAuthUser) {
+        const { profile } = await fetchProfile(nextAuthUser);
+        if (profile) {
+          setUser(mapUser(nextAuthUser, profile));
+        } else {
+          setUser((current) =>
+            current
+              ? {
+                  ...current,
+                  requiresPasswordChange: false,
+                }
+              : current
+          );
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error?.message || 'Nao foi possivel atualizar a senha.' };
+    }
   };
 
   const refreshProfile = async () => {
@@ -307,6 +383,7 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     login,
+    changePassword,
     logout,
     refreshProfile,
     hasModuleAccess,

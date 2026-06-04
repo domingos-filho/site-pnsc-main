@@ -29,7 +29,9 @@ const Login = () => {
         title: 'Login realizado!',
         description: 'Bem-vindo de volta!',
       });
-      const destination = location.state?.from?.pathname || '/dashboard';
+      const destination = result.requiresPasswordChange
+        ? '/dashboard/password'
+        : location.state?.from?.pathname || '/dashboard';
       navigate(destination);
     } else {
       toast({

@@ -25,6 +25,7 @@ const About = lazy(() => import('@/pages/About'));
 const Team = lazy(() => import('@/pages/Team'));
 const Contact = lazy(() => import('@/pages/Contact'));
 const Login = lazy(() => import('@/pages/Login'));
+const ChangePassword = lazy(() => import('@/pages/ChangePassword'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const ManageEvents = lazy(() => import('@/pages/admin/ManageEvents'));
 const ManageGallery = lazy(() => import('@/pages/admin/ManageGallery'));
@@ -61,6 +62,14 @@ function App() {
                 element={
                   <PrivateRoute>
                     <Dashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/dashboard/password"
+                element={
+                  <PrivateRoute>
+                    <ChangePassword />
                   </PrivateRoute>
                 }
               />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Menu, User, X } from 'lucide-react';
+import { KeyRound, LayoutDashboard, LogOut, Menu, User, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -83,6 +83,12 @@ const Header = () => {
                     Dashboard
                   </Button>
                 </Link>
+                <Link to="/dashboard/password">
+                  <Button variant="ghost" size="sm">
+                    <KeyRound className="h-4 w-4 mr-2" />
+                    Senha
+                  </Button>
+                </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Sair
@@ -132,6 +138,13 @@ const Header = () => {
                   >
                     Dashboard
                   </Link>
+                  <Link
+                    to="/dashboard/password"
+                    className="block py-2 text-gray-700 hover:text-blue-600"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Trocar senha
+                  </Link>
                   <button
                     onClick={() => {
                       handleLogout();
@@ -160,4 +173,3 @@ const Header = () => {
 };
 
 export default Header;
-

@@ -285,7 +285,7 @@ const UserEditorTabs = ({
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
               {formState.deliveryMode === 'invite'
                 ? 'Convite por e-mail depende do SMTP do Supabase e do fluxo de definição de senha no link recebido.'
-                : 'Senha provisória é o fluxo mais compatível com o login atual do site. A senha será gerada com segurança no servidor e exibida uma única vez após a criação.'}
+                : 'Senha provisória é o fluxo mais compatível com o login atual do site. A senha será gerada com segurança no servidor, exibida uma única vez após a criação e exigida para troca no primeiro acesso.'}
             </div>
           </div>
         ) : null}
@@ -856,7 +856,7 @@ const ManageUsers = () => {
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-emerald-900">
-                  Entregue essa senha ao usuário por um canal seguro. Ela aparece aqui uma única vez.
+                  Entregue essa senha ao usuário por um canal seguro. Ela aparece aqui uma única vez e será trocada no primeiro acesso.
                 </p>
               </div>
             ) : null}
