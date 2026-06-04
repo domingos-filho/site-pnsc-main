@@ -30,6 +30,7 @@ const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const ManageEvents = lazy(() => import('@/pages/admin/ManageEvents'));
 const ManageGallery = lazy(() => import('@/pages/admin/ManageGallery'));
 const ManageInventory = lazy(() => import('@/pages/admin/ManageInventory'));
+const ManageTableSales = lazy(() => import('@/pages/admin/ManageTableSales'));
 const ManageUsers = lazy(() => import('@/pages/admin/ManageUsers'));
 const SiteSettings = lazy(() => import('@/pages/admin/SiteSettings'));
 
@@ -102,6 +103,14 @@ function App() {
                 element={
                   <PrivateRoute requiredModule="inventory">
                     <ManageInventory />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/dashboard/table-sales"
+                element={
+                  <PrivateRoute requiredModule="table_sales">
+                    <ManageTableSales />
                   </PrivateRoute>
                 }
               />

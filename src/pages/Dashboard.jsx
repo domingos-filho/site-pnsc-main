@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Boxes, Calendar, Image, Settings, Users } from 'lucide-react';
+import { Boxes, Calendar, CalendarDays, Image, Settings, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,6 +50,14 @@ const Dashboard = () => {
       description: 'Gerencie listas de itens, quantidades e fotos por unidade.',
       isVisible: hasModuleAccess('inventory', 'read'),
       color: 'text-emerald-600',
+    },
+    {
+      name: 'Mesas',
+      path: '/dashboard/table-sales',
+      icon: CalendarDays,
+      description: 'Cadastre eventos, mesas e reservas com controle simples por unidade.',
+      isVisible: hasModuleAccess('table_sales', 'read'),
+      color: 'text-cyan-600',
     },
     {
       name: 'Gerenciar Usuarios',
