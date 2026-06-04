@@ -143,6 +143,7 @@ const formatStorageError = (error, fallbackMessage) => {
 export const uploadImageFile = async ({
   file,
   folder,
+  bucket = null,
   storeOriginal = true,
   generateThumbnail = false,
   thumbnailMaxWidth = 800,
@@ -157,8 +158,8 @@ export const uploadImageFile = async ({
     throw new Error('Supabase não configurado.');
   }
 
-  const bucket = normalizeBucket(getSupabaseBucket());
-  if (!bucket) {
+  const targetBucket = normalizeBucket(bucket || getSupabaseBucket());
+  if (!targetBucket) {
     throw new Error('Bucket do Storage não configurado.');
   }
 
@@ -171,6 +172,8 @@ export const uploadImageFile = async ({
   let thumbPath = null;
   let mediumUrl = null;
   let mediumPath = null;
+  let mediumFile = null;
+  let thumbFile = null;
   let loadedImage = null;
 
   const ensureLoadedImage = async () => {
@@ -183,7 +186,7 @@ export const uploadImageFile = async ({
   if (storeOriginal && originalPath) {
     try {
       originalUrl = await uploadStorageObject({
-        bucket,
+        bucket: targetBucket,
         path: originalPath,
         file,
         timeoutMessage: 'Tempo limite no upload. Verifique as políticas do Storage e sua conexão.',
@@ -195,7 +198,7 @@ export const uploadImageFile = async ({
 
   if (generateMedium) {
     try {
-      const mediumFile = await createResizedImageFile(
+      mediumFile = await createResizedImageFile(
         file,
         {
           maxWidth: mediumMaxWidth,
@@ -209,7 +212,7 @@ export const uploadImageFile = async ({
       const mediumExtension = mediumFile.type === 'image/png' ? 'png' : 'jpg';
       mediumPath = `${folder}/medium/${suffix}-${baseName}.${mediumExtension}`;
       mediumUrl = await uploadStorageObject({
-        bucket,
+        bucket: targetBucket,
         path: mediumPath,
         file: mediumFile,
         timeoutMessage: 'Tempo limite no upload da versão média.',
@@ -223,7 +226,7 @@ export const uploadImageFile = async ({
 
   if (generateThumbnail) {
     try {
-      const thumbFile = await createResizedImageFile(
+      thumbFile = await createResizedImageFile(
         file,
         {
           maxWidth: thumbnailMaxWidth,
@@ -238,7 +241,7 @@ export const uploadImageFile = async ({
       thumbPath = `${folder}/thumbs/${suffix}-${baseName}.${thumbExtension}`;
 
       thumbUrl = await uploadStorageObject({
-        bucket,
+        bucket: targetBucket,
         path: thumbPath,
         file: thumbFile,
         timeoutMessage: 'Tempo limite no upload da miniatura.',
@@ -256,6 +259,7 @@ export const uploadImageFile = async ({
 
   const primaryUrl = originalUrl || mediumUrl || thumbUrl;
   const primaryPath = originalPath || mediumPath || thumbPath;
+  const primaryFile = originalPath ? file : mediumPath ? mediumFile : thumbFile;
 
   if (!primaryUrl || !primaryPath) {
     throw new Error('Falha ao gerar arquivos otimizados da imagem.');
@@ -270,6 +274,9 @@ export const uploadImageFile = async ({
     thumbPath,
     mediumUrl,
     mediumPath,
+    primaryFileName: primaryFile?.name || null,
+    primaryMimeType: primaryFile?.type || null,
+    primaryFileSize: primaryFile?.size || null,
   };
 };
 

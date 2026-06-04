@@ -890,28 +890,28 @@ const ManageInventory = () => {
     const existingImages = await loadItemImageAttachments(itemId);
     const shouldRemoveExistingImages = removePhoto || Boolean(photoFile);
 
-    let uploadedPath = null;
+    let uploadedPhoto = null;
 
-    try {
-      if (photoFile) {
-        uploadedPath = await uploadInventoryAttachmentFile({
-          inventoryItemId: itemId,
-          file: photoFile,
-        });
-      }
+      try {
+        if (photoFile) {
+          uploadedPhoto = await uploadInventoryAttachmentFile({
+            inventoryItemId: itemId,
+            file: photoFile,
+          });
+        }
 
       if (shouldRemoveExistingImages) {
         await removeItemImageAttachments(existingImages);
       }
 
-      if (photoFile && uploadedPath) {
+      if (photoFile && uploadedPhoto?.path) {
         const { error } = await supabase.from('inventory_item_attachments').insert({
           inventory_item_id: itemId,
           bucket_id: 'inventory-media',
-          bucket_path: uploadedPath,
-          file_name: photoFile.name,
-          mime_type: photoFile.type || null,
-          file_size_bytes: photoFile.size || null,
+          bucket_path: uploadedPhoto.path,
+          file_name: uploadedPhoto.fileName || photoFile.name,
+          mime_type: uploadedPhoto.mimeType || photoFile.type || null,
+          file_size_bytes: uploadedPhoto.fileSizeBytes || photoFile.size || null,
           kind: 'image',
           caption: null,
           is_cover: true,
@@ -920,8 +920,8 @@ const ManageInventory = () => {
         if (error) throw error;
       }
     } catch (error) {
-      if (uploadedPath) {
-        await Promise.allSettled([removeInventoryStorageObject(uploadedPath)]);
+      if (uploadedPhoto?.path) {
+        await Promise.allSettled([removeInventoryStorageObject(uploadedPhoto.path)]);
       }
       throw error;
     }
@@ -1421,7 +1421,7 @@ const ManageInventory = () => {
         saving={savingItem}
       />
 
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 py-14 text-white">
+      <div className="overflow-x-clip bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 py-10 text-white md:py-14">
         <div className="container mx-auto px-4">
           <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-slate-100">
@@ -1430,22 +1430,22 @@ const ManageInventory = () => {
             </div>
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h1 className="text-4xl font-bold tracking-tight md:text-5xl">Inventario</h1>
+                <h1 className="text-3xl font-bold tracking-tight md:text-5xl">Inventario</h1>
                 <p className="mt-3 max-w-3xl text-base text-slate-200 md:text-lg">
                   Lista de itens por unidade, com quantidade manual e foto para identificacao visual.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Button
                   variant="outline"
-                  className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  className="w-full justify-center border-white/20 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
                   onClick={() => void loadInventories()}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Atualizar
                 </Button>
                 {canWriteInventory ? (
-                  <Button onClick={openCreateInventoryDialog}>
+                  <Button className="w-full justify-center sm:w-auto" onClick={openCreateInventoryDialog}>
                     <Plus className="mr-2 h-4 w-4" />
                     Novo inventario
                   </Button>
@@ -1456,7 +1456,7 @@ const ManageInventory = () => {
         </div>
       </div>
 
-      <section className="bg-slate-50 py-10">
+      <section className="overflow-x-clip bg-slate-50 py-8 md:py-10">
         <div className="container mx-auto px-4">
           <div className="mb-8 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1495,9 +1495,9 @@ const ManageInventory = () => {
             </div>
           ) : null}
 
-          <div className={`grid gap-6 ${isDedicatedInventoryView ? '' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}>
+          <div className={`grid items-start gap-6 ${isDedicatedInventoryView ? '' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}>
             {!isDedicatedInventoryView ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold text-slate-900">Inventarios</h2>
                   <p className="text-sm text-slate-500">Selecione a unidade que deseja operar.</p>
@@ -1565,8 +1565,8 @@ const ManageInventory = () => {
               </div>
             ) : null}
 
-            <div className="space-y-6">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="min-w-0 space-y-6">
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 {activeInventory ? (
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -1591,20 +1591,32 @@ const ManageInventory = () => {
                     </div>
 
                     {(canWriteActiveInventory || canAdminActiveInventory) && (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         {!isDedicatedInventoryView ? (
-                          <Button variant="outline" onClick={() => navigate(`/dashboard/inventory/${activeInventory.id}`)}>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-center sm:w-auto"
+                            onClick={() => navigate(`/dashboard/inventory/${activeInventory.id}`)}
+                          >
                             Foco neste inventario
                           </Button>
                         ) : null}
                         {canWriteActiveInventory ? (
-                          <Button variant="outline" onClick={() => openEditInventoryDialog(activeInventory)}>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-center sm:w-auto"
+                            onClick={() => openEditInventoryDialog(activeInventory)}
+                          >
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
                           </Button>
                         ) : null}
                         {canAdminActiveInventory ? (
-                          <Button variant="destructive" onClick={() => void deleteInventory(activeInventory)}>
+                          <Button
+                            variant="destructive"
+                            className="w-full justify-center sm:w-auto"
+                            onClick={() => void deleteInventory(activeInventory)}
+                          >
                             <Trash2 className="mr-2 h-4 w-4" />
                             Excluir
                           </Button>
@@ -1619,7 +1631,7 @@ const ManageInventory = () => {
                 )}
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">Itens</h3>
@@ -1628,7 +1640,7 @@ const ManageInventory = () => {
                     </p>
                   </div>
                   {activeInventory && canWriteActiveInventory ? (
-                    <Button onClick={openCreateItemDialog}>
+                    <Button className="w-full justify-center md:w-auto" onClick={openCreateItemDialog}>
                       <Plus className="mr-2 h-4 w-4" />
                       Novo item
                     </Button>
@@ -1690,7 +1702,103 @@ const ManageInventory = () => {
                     Nenhum item corresponde aos filtros atuais.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                    <div className="space-y-3 md:hidden">
+                      {filteredItems.map((item) => {
+                        const isSelected = item.id === selectedItemId;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`rounded-2xl border p-4 shadow-sm transition ${
+                              isSelected ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              className="w-full text-left"
+                              onClick={() => setSelectedItemId(item.id)}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="font-medium text-slate-900">{item.name}</div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    {item.sku || 'Sem SKU'}
+                                    {item.serial_number ? ` - Serial ${item.serial_number}` : ''}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+                                    item.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                                  }`}
+                                >
+                                  {item.is_active ? 'Ativo' : 'Inativo'}
+                                </span>
+                              </div>
+                            </button>
+
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tipo</div>
+                                <div className="mt-1 text-sm text-slate-700">
+                                  {itemTypeOptions.find((option) => option.value === item.item_type)?.label || item.item_type}
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Quantidade</div>
+                                <div className="mt-1 text-sm font-medium text-slate-900">
+                                  {formatQuantity(item.current_quantity, item.unit_label)}
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Estado</div>
+                                <div className="mt-1 text-sm text-slate-700">
+                                  {conditionStatusOptions.find((option) => option.value === item.condition_status)?.label ||
+                                    item.condition_status}
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Localizacao</div>
+                                <div className="mt-1 text-sm text-slate-700">{item.location_text || '-'}</div>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <Button
+                                variant="outline"
+                                className="flex-1 min-w-[120px]"
+                                onClick={() => setSelectedItemId(item.id)}
+                              >
+                                <Image className="mr-2 h-4 w-4" />
+                                Ver item
+                              </Button>
+                              {canWriteActiveInventory ? (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    className="flex-1 min-w-[120px]"
+                                    onClick={() => void openEditItemDialog(item)}
+                                  >
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Editar
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    className="flex-1 min-w-[120px]"
+                                    onClick={() => void deleteItem(item)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Excluir
+                                  </Button>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[760px] text-left text-sm">
                       <thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                         <tr>
@@ -1758,12 +1866,13 @@ const ManageInventory = () => {
                         })}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+                  </>
                 )}
               </div>
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4">
                     <h3 className="text-lg font-semibold text-slate-900">Resumo do item</h3>
                     <p className="text-sm text-slate-500">
@@ -1831,7 +1940,7 @@ const ManageInventory = () => {
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4">
                     <h3 className="text-lg font-semibold text-slate-900">Foto do item</h3>
                     <p className="text-sm text-slate-500">
@@ -1852,7 +1961,7 @@ const ManageInventory = () => {
                       <img
                         src={coverPhotoAttachment.signedUrl}
                         alt={activeItem.name}
-                        className="h-72 w-full rounded-2xl border border-slate-200 object-cover"
+                        className="h-56 w-full rounded-2xl border border-slate-200 object-cover sm:h-72"
                       />
                       <div className="text-xs text-slate-500">{coverPhotoAttachment.file_name || 'Foto do item'}</div>
                       <div className="flex flex-wrap gap-2">
@@ -1874,7 +1983,7 @@ const ManageInventory = () => {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <div className="flex h-72 w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-slate-500">
+                      <div className="flex h-56 w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 sm:h-72">
                         <div className="flex flex-col items-center gap-3 text-center">
                           <Image className="h-8 w-8" />
                           <div className="text-sm">Nenhuma foto cadastrada para este item.</div>

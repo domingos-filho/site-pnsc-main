@@ -1,21 +1,15 @@
 import { isSupabaseReady, supabase } from '@/lib/supabaseClient';
+import { uploadImageFile } from '@/lib/supabaseStorage';
 
 export const INVENTORY_BUCKET = 'inventory-media';
 const SIGNED_URL_EXPIRES_IN = 60 * 60;
-
-const safeFileName = (fileName) =>
-  String(fileName || 'arquivo')
-    .normalize('NFKD')
-    .replace(/[^\w.-]+/g, '_')
-    .replace(/_{2,}/g, '_')
-    .replace(/^_+|_+$/g, '');
-
-const uniqueSuffix = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const INVENTORY_IMAGE_UPLOAD_OPTIONS = {
+  storeOriginal: false,
+  generateThumbnail: false,
+  generateMedium: true,
+  mediumMaxWidth: 1600,
+  mediumMaxHeight: 1600,
+  mediumQuality: 0.86,
 };
 
 export const isInventoryStorageReady = () => Boolean(isSupabaseReady && supabase);
@@ -23,26 +17,24 @@ export const isInventoryStorageReady = () => Boolean(isSupabaseReady && supabase
 export const formatInventoryError = (error, fallback = 'Não foi possível concluir a operação.') =>
   error?.message || fallback;
 
-export const buildInventoryAttachmentPath = (inventoryItemId, fileName) =>
-  `${inventoryItemId}/${uniqueSuffix()}-${safeFileName(fileName)}`;
-
 export const uploadInventoryAttachmentFile = async ({ inventoryItemId, file }) => {
   if (!isInventoryStorageReady()) {
     throw new Error('Supabase não configurado para anexos do inventário.');
   }
 
-  const path = buildInventoryAttachmentPath(inventoryItemId, file?.name);
-  const { error } = await supabase.storage.from(INVENTORY_BUCKET).upload(path, file, {
-    cacheControl: '3600',
-    upsert: false,
-    contentType: file?.type || 'application/octet-stream',
+  const upload = await uploadImageFile({
+    file,
+    folder: String(inventoryItemId),
+    bucket: INVENTORY_BUCKET,
+    ...INVENTORY_IMAGE_UPLOAD_OPTIONS,
   });
 
-  if (error) {
-    throw error;
-  }
-
-  return path;
+  return {
+    path: upload.mediumPath || upload.path || upload.originalPath,
+    fileName: upload.primaryFileName || file?.name || null,
+    mimeType: upload.primaryMimeType || file?.type || null,
+    fileSizeBytes: upload.primaryFileSize || file?.size || null,
+  };
 };
 
 export const removeInventoryStorageObject = async (path) => {

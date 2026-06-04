@@ -1,6 +1,7 @@
 -- Inventory v1 schema
 -- Prerequisite: supabase/operacoes_v1_foundation_schema.sql already applied.
--- This module uses private Storage for item photos and attachments.
+-- Current UX focus: simple item catalog by group, with manual quantity and one primary photo.
+-- Legacy movement and generic attachment structures are retained for compatibility.
 
 create table if not exists public.inventories (
   id uuid primary key default gen_random_uuid(),
@@ -48,7 +49,7 @@ create table if not exists public.inventory_items (
 
 create table if not exists public.inventory_movements (
   id uuid primary key default gen_random_uuid(),
-  inventory_item_id uuid not null references public.inventory_items(id) on delete restrict,
+  inventory_item_id uuid not null references public.inventory_items(id) on delete cascade,
   movement_type text not null,
   quantity_delta numeric(14,3) not null,
   resulting_quantity numeric(14,3),
@@ -171,6 +172,30 @@ alter table public.inventory_item_attachments drop constraint if exists inventor
 alter table public.inventory_item_attachments
   add constraint inventory_item_attachments_file_size_check
   check (file_size_bytes is null or file_size_bytes >= 0);
+
+comment on table public.inventories is
+  'Inventarios por unidade organizacional. Na UX atual, funcionam como listas de itens do grupo.';
+
+comment on table public.inventory_items is
+  'Catalogo de itens por inventario. A UX atual usa quantidade manual e foto principal por item.';
+
+comment on column public.inventory_items.current_quantity is
+  'Quantidade manual do item no catalogo simplificado.';
+
+comment on column public.inventory_items.tracking_mode is
+  'Campo legado de compatibilidade. A UX atual opera sempre em modo quantity.';
+
+comment on column public.inventory_items.minimum_quantity is
+  'Campo legado/opcional. Nao e usado na UX simplificada atual.';
+
+comment on column public.inventory_items.ideal_quantity is
+  'Campo legado/opcional. Nao e usado na UX simplificada atual.';
+
+comment on table public.inventory_movements is
+  'Estrutura legada/opcional para historico de movimentacoes. A UX simplificada atual nao depende desta tabela.';
+
+comment on table public.inventory_item_attachments is
+  'Arquivos privados do item. A UX simplificada atual usa principalmente uma foto principal de identificacao.';
 
 create or replace function public.inventory_has_module_access(permission text default 'read')
 returns boolean
@@ -306,6 +331,106 @@ as $$
       else public.inventory_can_access_item(public.inventory_extract_item_id_from_path(object_name), permission)
     end;
 $$;
+
+create or replace function public.inventory_item_primary_photo(target_item_id uuid)
+returns table (
+  id uuid,
+  inventory_item_id uuid,
+  bucket_id text,
+  bucket_path text,
+  file_name text,
+  mime_type text,
+  file_size_bytes bigint,
+  caption text,
+  created_at timestamptz
+)
+language sql
+security invoker
+set search_path = public
+as $$
+  select
+    attachment.id,
+    attachment.inventory_item_id,
+    attachment.bucket_id,
+    attachment.bucket_path,
+    attachment.file_name,
+    attachment.mime_type,
+    attachment.file_size_bytes,
+    attachment.caption,
+    attachment.created_at
+  from public.inventory_item_attachments attachment
+  where attachment.inventory_item_id = target_item_id
+    and attachment.kind = 'image'
+  order by attachment.is_cover desc, attachment.created_at asc, attachment.id asc
+  limit 1;
+$$;
+
+comment on function public.inventory_item_primary_photo(uuid) is
+  'Retorna a foto principal do item no modelo simplificado de catalogo.';
+
+create or replace function public.inventory_catalog_items(target_inventory_id uuid default null)
+returns table (
+  item_id uuid,
+  inventory_id uuid,
+  inventory_name text,
+  inventory_slug text,
+  org_unit_id uuid,
+  sku text,
+  name text,
+  description text,
+  item_type text,
+  unit_label text,
+  current_quantity numeric,
+  location_text text,
+  brand text,
+  model text,
+  serial_number text,
+  condition_status text,
+  acquisition_date date,
+  acquisition_cost numeric,
+  is_active boolean,
+  photo_bucket_path text,
+  photo_file_name text,
+  photo_mime_type text,
+  photo_file_size_bytes bigint
+)
+language sql
+security invoker
+set search_path = public
+as $$
+  select
+    item.id as item_id,
+    item.inventory_id,
+    inventory.name as inventory_name,
+    inventory.slug as inventory_slug,
+    inventory.org_unit_id,
+    item.sku,
+    item.name,
+    item.description,
+    item.item_type,
+    item.unit_label,
+    item.current_quantity,
+    item.location_text,
+    item.brand,
+    item.model,
+    item.serial_number,
+    item.condition_status,
+    item.acquisition_date,
+    item.acquisition_cost,
+    item.is_active,
+    photo.bucket_path as photo_bucket_path,
+    photo.file_name as photo_file_name,
+    photo.mime_type as photo_mime_type,
+    photo.file_size_bytes as photo_file_size_bytes
+  from public.inventory_items item
+  join public.inventories inventory on inventory.id = item.inventory_id
+  left join lateral public.inventory_item_primary_photo(item.id) photo on true
+  where target_inventory_id is null or item.inventory_id = target_inventory_id
+  order by inventory.name, item.name;
+$$;
+
+comment on function public.inventory_catalog_items(uuid) is
+  'Leitura simplificada de itens do catalogo com foto principal, sem depender de inventory_movements.';
 
 create or replace function public.prepare_inventory()
 returns trigger
@@ -449,6 +574,9 @@ begin
 end;
 $$;
 
+comment on function public.inventory_apply_movement() is
+  'Funcao legada/opcional para quem ainda registra inventory_movements.';
+
 create or replace function public.inventory_block_item_delete_with_history()
 returns trigger
 language plpgsql
@@ -468,6 +596,9 @@ begin
   return old;
 end;
 $$;
+
+comment on function public.inventory_block_item_delete_with_history() is
+  'Funcao legada. O modo catalogo simplificado nao deve mais usa-la para bloquear exclusao.';
 
 drop trigger if exists inventories_prepare on public.inventories;
 create trigger inventories_prepare
@@ -490,9 +621,6 @@ before update on public.inventory_items
 for each row execute function public.set_operacoes_updated_at();
 
 drop trigger if exists inventory_items_delete_guard on public.inventory_items;
-create trigger inventory_items_delete_guard
-before delete on public.inventory_items
-for each row execute function public.inventory_block_item_delete_with_history();
 
 drop trigger if exists inventory_movements_prepare on public.inventory_movements;
 create trigger inventory_movements_prepare
@@ -623,7 +751,7 @@ values (
   'inventory-media',
   false,
   10485760,
-  array['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+  array['image/jpeg', 'image/png', 'image/webp']
 )
 on conflict (id) do update
 set
