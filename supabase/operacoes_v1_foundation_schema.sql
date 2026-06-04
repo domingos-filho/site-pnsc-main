@@ -275,7 +275,7 @@ insert into public.app_modules (
 )
 values
   ('market', 'Mini mercado', 'Controle de produtos, vendas, estoque, caixa e orçamento.', true, jsonb_build_object('source', 'operacoes_v1_foundation_schema')),
-  ('inventory', 'Inventário', 'Controle de itens, patrimônio e movimentações por unidade.', true, jsonb_build_object('source', 'operacoes_v1_foundation_schema')),
+  ('inventory', 'Inventário', 'Catálogo de itens por unidade, com quantidade manual e foto principal.', true, jsonb_build_object('source', 'operacoes_v1_foundation_schema')),
   ('table_sales', 'Mesas', 'Venda e reserva de mesas por evento com layout simples.', true, jsonb_build_object('source', 'operacoes_v1_foundation_schema'))
 on conflict (key) do update
 set

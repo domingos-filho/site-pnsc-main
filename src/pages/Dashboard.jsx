@@ -47,7 +47,7 @@ const Dashboard = () => {
       name: 'Inventario',
       path: '/dashboard/inventory',
       icon: Boxes,
-      description: 'Gerencie inventarios, itens, movimentacoes e anexos privados por unidade.',
+      description: 'Gerencie listas de itens, quantidades e fotos por unidade.',
       isVisible: hasModuleAccess('inventory', 'read'),
       color: 'text-emerald-600',
     },

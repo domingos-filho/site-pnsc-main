@@ -1303,7 +1303,6 @@ const ManageInventory = () => {
         name: itemForm.name.trim(),
         description: trimOrNull(itemForm.description),
         item_type: itemForm.itemType,
-        tracking_mode: 'quantity',
         unit_label: trimOrNull(itemForm.unitLabel) || 'un',
         current_quantity: parseNumberOrZero(itemForm.currentQuantity),
         location_text: trimOrNull(itemForm.locationText),

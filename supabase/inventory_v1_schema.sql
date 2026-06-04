@@ -465,7 +465,7 @@ begin
   new.name := btrim(coalesce(new.name, ''));
   new.description := nullif(btrim(coalesce(new.description, '')), '');
   new.item_type := coalesce(nullif(btrim(coalesce(new.item_type, '')), ''), 'consumable');
-  new.tracking_mode := coalesce(nullif(btrim(coalesce(new.tracking_mode, '')), ''), 'quantity');
+  new.tracking_mode := 'quantity';
   new.unit_label := coalesce(nullif(btrim(coalesce(new.unit_label, '')), ''), 'un');
   new.location_text := nullif(btrim(coalesce(new.location_text, '')), '');
   new.brand := nullif(btrim(coalesce(new.brand, '')), '');
@@ -474,8 +474,8 @@ begin
   new.condition_status := coalesce(nullif(btrim(coalesce(new.condition_status, '')), ''), 'good');
   new.metadata := coalesce(new.metadata, '{}'::jsonb);
   new.current_quantity := coalesce(new.current_quantity, 0);
-  new.minimum_quantity := coalesce(new.minimum_quantity, 0);
-  new.ideal_quantity := case when new.ideal_quantity is null then null else new.ideal_quantity end;
+  new.minimum_quantity := 0;
+  new.ideal_quantity := null;
   new.acquisition_cost := case when new.acquisition_cost is null then null else new.acquisition_cost end;
 
   if tg_op = 'INSERT' then
@@ -486,6 +486,9 @@ begin
   return new;
 end;
 $$;
+
+comment on function public.prepare_inventory_item() is
+  'Normaliza itens para o modo catalogo simplificado: quantidade manual, tracking_mode quantity e sem metas de estoque.';
 
 create or replace function public.prepare_inventory_attachment()
 returns trigger
