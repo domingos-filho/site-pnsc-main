@@ -100,6 +100,25 @@ const normalizeInventoryRow = (row) => ({
   orgUnit: normalizeNestedOrgUnit(row.org_units),
 });
 
+const normalizeInventoryCatalogItemRow = (row) => ({
+  ...row,
+  id: row.item_id,
+  primary_photo: row.photo_bucket_path
+    ? {
+        id: `primary-${row.item_id}`,
+        inventory_item_id: row.item_id,
+        bucket_id: 'inventory-media',
+        bucket_path: row.photo_bucket_path,
+        file_name: row.photo_file_name,
+        mime_type: row.photo_mime_type,
+        file_size_bytes: row.photo_file_size_bytes,
+        caption: null,
+        created_at: null,
+        is_cover: true,
+      }
+    : null,
+});
+
 const trimOrNull = (value) => {
   const normalized = String(value || '').trim();
   return normalized || null;
@@ -817,19 +836,19 @@ const ManageInventory = () => {
   const loadItems = async (inventoryId) => {
     if (!inventoryId || !isSupabaseReady) {
       setItems([]);
-      return;
+      return [];
     }
 
     setLoadingItems(true);
     try {
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .select('*')
-        .eq('inventory_id', inventoryId)
-        .order('name', { ascending: true });
+      const { data, error } = await supabase.rpc('inventory_catalog_items', {
+        target_inventory_id: inventoryId,
+      });
 
       if (error) throw error;
-      setItems(data || []);
+      const nextItems = (data || []).map(normalizeInventoryCatalogItemRow);
+      setItems(nextItems);
+      return nextItems;
     } catch (error) {
       toast({
         title: 'Erro',
@@ -837,6 +856,7 @@ const ManageInventory = () => {
         variant: 'destructive',
       });
       setItems([]);
+      return [];
     } finally {
       setLoadingItems(false);
     }
@@ -927,7 +947,7 @@ const ManageInventory = () => {
     }
   };
 
-  const loadItemDetails = async (itemId) => {
+  const loadItemDetails = async (itemId, sourceItems = items) => {
     if (!itemId || !isSupabaseReady) {
       setAttachments([]);
       return;
@@ -935,8 +955,22 @@ const ManageInventory = () => {
 
     setLoadingItemDetails(true);
     try {
-      const imageAttachments = await loadItemImageAttachments(itemId);
-      setAttachments(imageAttachments);
+      const item = sourceItems.find((entry) => entry.id === itemId) || null;
+      const primaryPhoto = item?.primary_photo || null;
+
+      if (!primaryPhoto?.bucket_path) {
+        setAttachments([]);
+        return;
+      }
+
+      let signedUrl = null;
+      try {
+        signedUrl = await getInventorySignedUrl(primaryPhoto.bucket_path);
+      } catch {
+        signedUrl = null;
+      }
+
+      setAttachments([{ ...primaryPhoto, signedUrl }]);
     } catch (error) {
       toast({
         title: 'Erro',
@@ -1307,9 +1341,9 @@ const ManageInventory = () => {
         await syncItemPhoto(savedItemId, itemForm.photoFile, itemForm.removePhoto);
       }
 
-      await loadItems(selectedInventoryId);
+      const refreshedItems = await loadItems(selectedInventoryId);
       if (savedItemId) {
-        await loadItemDetails(savedItemId);
+        await loadItemDetails(savedItemId, refreshedItems);
       }
       setItemDialogOpen(false);
       setItemPhotoInputKey((current) => current + 1);
