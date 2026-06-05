@@ -78,6 +78,14 @@ const createEmptyTableForm = () => ({
   notes: '',
 });
 
+const createEmptyTableBatchForm = (startNumber = '1') => ({
+  startNumber,
+  quantity: '10',
+  sector: '',
+  capacity: '4',
+  basePrice: '',
+});
+
 const createEmptyReservationForm = () => ({
   tableId: '',
   customerName: '',
@@ -119,6 +127,11 @@ const parseNumberOrNull = (value) => {
 const parseNumberOrZero = (value) => {
   const parsed = parseNumberOrNull(value);
   return parsed === null ? 0 : parsed;
+};
+
+const parsePositiveInteger = (value) => {
+  const parsed = Number.parseInt(String(value || '').trim(), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
 const normalizeSearch = (value) => String(value || '').trim().toLocaleLowerCase('pt-BR');
@@ -479,6 +492,89 @@ const TableFormDialog = ({ open, onOpenChange, mode, formState, setFormState, on
   </Dialog>
 );
 
+const BatchTableFormDialog = ({ open, onOpenChange, formState, setFormState, onSubmit, saving }) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>Gerar mesas em lote</DialogTitle>
+        <DialogDescription>
+          Informe a numeracao inicial e os dados padrao. O sistema cria a sequencia automaticamente.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="table-batch-start-number">Numero inicial</Label>
+          <Input
+            id="table-batch-start-number"
+            type="number"
+            min="1"
+            step="1"
+            value={formState.startNumber}
+            onChange={(event) => setFormState((current) => ({ ...current, startNumber: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="table-batch-quantity">Quantidade de mesas</Label>
+          <Input
+            id="table-batch-quantity"
+            type="number"
+            min="1"
+            step="1"
+            value={formState.quantity}
+            onChange={(event) => setFormState((current) => ({ ...current, quantity: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="table-batch-sector">Setor</Label>
+          <Input
+            id="table-batch-sector"
+            value={formState.sector}
+            onChange={(event) => setFormState((current) => ({ ...current, sector: event.target.value }))}
+            placeholder="Opcional"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="table-batch-capacity">Capacidade padrao</Label>
+          <Input
+            id="table-batch-capacity"
+            type="number"
+            min="1"
+            step="1"
+            value={formState.capacity}
+            onChange={(event) => setFormState((current) => ({ ...current, capacity: event.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="table-batch-price">Preco padrao da mesa</Label>
+          <Input
+            id="table-batch-price"
+            type="number"
+            min="0"
+            step="0.01"
+            value={formState.basePrice}
+            onChange={(event) => setFormState((current) => ({ ...current, basePrice: event.target.value }))}
+            placeholder="Vazio = usar preco padrao do evento"
+          />
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button onClick={onSubmit} disabled={saving}>
+          {saving ? 'Gerando...' : 'Gerar mesas'}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
 const ReservationFormDialog = ({
   open,
   onOpenChange,
@@ -676,6 +772,9 @@ const ManageTableSales = () => {
   const [tableForm, setTableForm] = useState(createEmptyTableForm());
   const [editingTableId, setEditingTableId] = useState(null);
   const [savingTable, setSavingTable] = useState(false);
+  const [tableBatchDialogOpen, setTableBatchDialogOpen] = useState(false);
+  const [tableBatchForm, setTableBatchForm] = useState(createEmptyTableBatchForm());
+  const [savingTableBatch, setSavingTableBatch] = useState(false);
   const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
   const [reservationDialogMode, setReservationDialogMode] = useState('create');
   const [reservationForm, setReservationForm] = useState(createEmptyReservationForm());
@@ -756,6 +855,15 @@ const ManageTableSales = () => {
     () => reservations.filter((reservation) => ['pending', 'confirmed'].includes(reservation.status)).length,
     [reservations]
   );
+
+  const nextSuggestedTableNumber = useMemo(() => {
+    const maxNumericTableNumber = tables.reduce((maxValue, table) => {
+      const parsed = Number.parseInt(String(table.table_number || '').trim(), 10);
+      return Number.isInteger(parsed) && parsed > maxValue ? parsed : maxValue;
+    }, 0);
+
+    return String(maxNumericTableNumber + 1);
+  }, [tables]);
 
   const totalReceived = useMemo(
     () => reservations.reduce((sum, reservation) => sum + Number(reservation.amount_paid || 0), 0),
@@ -1203,6 +1311,12 @@ const ManageTableSales = () => {
     setTableDialogOpen(true);
   };
 
+  const openBatchTableDialog = () => {
+    if (!selectedEventId) return;
+    setTableBatchForm(createEmptyTableBatchForm(nextSuggestedTableNumber));
+    setTableBatchDialogOpen(true);
+  };
+
   const openEditTableDialog = (table) => {
     setTableDialogMode('edit');
     setEditingTableId(table.table_id);
@@ -1269,6 +1383,87 @@ const ManageTableSales = () => {
       });
     } finally {
       setSavingTable(false);
+    }
+  };
+
+  const saveTableBatch = async () => {
+    if (!selectedEventId) return;
+
+    const startNumber = parsePositiveInteger(tableBatchForm.startNumber);
+    const quantity = parsePositiveInteger(tableBatchForm.quantity);
+    const capacity = parsePositiveInteger(tableBatchForm.capacity);
+
+    if (!startNumber || !quantity || !capacity) {
+      toast({
+        title: 'Erro',
+        description: 'Informe numero inicial, quantidade e capacidade com valores inteiros maiores que zero.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (quantity > 500) {
+      toast({
+        title: 'Erro',
+        description: 'A geracao em lote aceita no maximo 500 mesas por vez.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingTableBatch(true);
+    try {
+      await ensureSupabaseWriteSession();
+      const canWriteEvent = await checkEventPermission(selectedEventId, 'write');
+      if (!canWriteEvent) {
+        throw new Error('Seu perfil nao possui permissao de escrita neste evento de mesas.');
+      }
+
+      const generatedNumbers = Array.from({ length: quantity }, (_, index) => String(startNumber + index));
+      const { data: existingTables, error: existingTablesError } = await supabase
+        .from('table_sales_tables')
+        .select('table_number')
+        .eq('table_sales_event_id', selectedEventId)
+        .in('table_number', generatedNumbers);
+
+      if (existingTablesError) throw existingTablesError;
+
+      if (existingTables?.length) {
+        const duplicatedNumbers = existingTables.map((table) => table.table_number).filter(Boolean);
+        const preview = duplicatedNumbers.slice(0, 6).join(', ');
+        const suffix = duplicatedNumbers.length > 6 ? '...' : '';
+        throw new Error(`Ja existem mesas com esta numeracao neste evento: ${preview}${suffix}`);
+      }
+
+      const batchPayload = generatedNumbers.map((tableNumber) => ({
+        table_sales_event_id: selectedEventId,
+        table_number: tableNumber,
+        display_name: null,
+        sector: trimOrNull(tableBatchForm.sector),
+        capacity,
+        base_price: parseNumberOrNull(tableBatchForm.basePrice),
+        status: 'available',
+        notes: null,
+      }));
+
+      const { error } = await supabase.from('table_sales_tables').insert(batchPayload);
+      if (error) throw error;
+
+      await loadTables(selectedEventId);
+      setTableBatchDialogOpen(false);
+
+      toast({
+        title: 'Sucesso!',
+        description: `${quantity} mesa${quantity > 1 ? 's foram criadas' : ' foi criada'} em lote.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatTableSalesError(error, 'Nao foi possivel gerar as mesas em lote.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingTableBatch(false);
     }
   };
 
@@ -1448,6 +1643,15 @@ const ManageTableSales = () => {
         setFormState={setTableForm}
         onSubmit={() => void saveTable()}
         saving={savingTable}
+      />
+
+      <BatchTableFormDialog
+        open={tableBatchDialogOpen}
+        onOpenChange={setTableBatchDialogOpen}
+        formState={tableBatchForm}
+        setFormState={setTableBatchForm}
+        onSubmit={() => void saveTableBatch()}
+        saving={savingTableBatch}
       />
 
       <ReservationFormDialog
@@ -1644,6 +1848,10 @@ const ManageTableSales = () => {
                             <Plus className="mr-2 h-4 w-4" />
                             Nova mesa
                           </Button>
+                          <Button variant="outline" onClick={openBatchTableDialog}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Gerar mesas
+                          </Button>
                           <Button variant="secondary" onClick={() => openCreateReservationDialog()}>
                             <Plus className="mr-2 h-4 w-4" />
                             Nova reserva
@@ -1701,10 +1909,16 @@ const ManageTableSales = () => {
                   <p className="text-sm text-slate-500">Controle de disponibilidade e preco por mesa.</p>
                 </div>
                 {selectedEvent && activeEventAccess.write ? (
-                  <Button onClick={openCreateTableDialog}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Nova mesa
-                  </Button>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button variant="outline" onClick={openBatchTableDialog}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Gerar mesas
+                    </Button>
+                    <Button onClick={openCreateTableDialog}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Nova mesa
+                    </Button>
+                  </div>
                 ) : null}
               </div>
 
