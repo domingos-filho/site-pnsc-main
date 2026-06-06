@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -171,6 +171,9 @@ const normalizeSearch = (value) => String(value || '').trim().toLocaleLowerCase(
 const formatTableSalesError = (error, fallback = 'Nao foi possivel concluir a operacao.') =>
   error?.message || fallback;
 
+const isMissingColumnError = (error, columnName) =>
+  error?.code === '42703' || String(error?.message || '').includes(`column ${columnName}`);
+
 const formatCurrency = (value) =>
   new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -256,6 +259,7 @@ const EventFormDialog = ({
   onSubmit,
   availableOrgUnits,
   saving,
+  supportsIndividualSales,
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="w-[calc(100vw-1rem)] max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -343,23 +347,25 @@ const EventFormDialog = ({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="table-sales-allow-individual">Permite venda individual?</Label>
-          <select
-            id="table-sales-allow-individual"
-            value={formState.allowIndividualSales ? 'yes' : 'no'}
-            onChange={(event) =>
-              setFormState((current) => ({
-                ...current,
-                allowIndividualSales: event.target.value === 'yes',
-              }))
-            }
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="no">Nao</option>
-            <option value="yes">Sim</option>
-          </select>
-        </div>
+        {supportsIndividualSales ? (
+          <div className="space-y-2">
+            <Label htmlFor="table-sales-allow-individual">Permite venda individual?</Label>
+            <select
+              id="table-sales-allow-individual"
+              value={formState.allowIndividualSales ? 'yes' : 'no'}
+              onChange={(event) =>
+                setFormState((current) => ({
+                  ...current,
+                  allowIndividualSales: event.target.value === 'yes',
+                }))
+              }
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="no">Nao</option>
+              <option value="yes">Sim</option>
+            </select>
+          </div>
+        ) : null}
 
         <div className="space-y-2">
           <Label htmlFor="table-sales-start">Inicio da venda</Label>
@@ -882,6 +888,8 @@ const ManageTableSales = () => {
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [savingReservation, setSavingReservation] = useState(false);
   const [activeEventAccess, setActiveEventAccess] = useState({ loading: false, write: null, admin: null });
+  const [individualSalesSchemaReady, setIndividualSalesSchemaReady] = useState(true);
+  const individualSalesWarningShownRef = useRef(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, hasModuleAccess, refreshProfile } = useAuth();
@@ -1132,49 +1140,103 @@ const ManageTableSales = () => {
     return [];
   };
 
+  const warnIndividualSalesSchemaPending = () => {
+    if (individualSalesWarningShownRef.current) return;
+    individualSalesWarningShownRef.current = true;
+    toast({
+      title: 'Atencao',
+      description:
+        'O banco deste ambiente ainda nao recebeu o patch de venda individual. O modulo seguira em modo mesa ate aplicar table_sales_v1_individual_sales_patch.sql.',
+      variant: 'destructive',
+    });
+  };
+
   const loadEvents = async () => {
     if (!isSupabaseReady || !user) return;
 
     setLoadingEvents(true);
     try {
-      const [eventsResponse, orgUnitsResponse] = await Promise.all([
-        supabase
-          .from('table_sales_events')
-          .select(
-            `
-              id,
-              org_unit_id,
-              slug,
-              name,
-              description,
-              event_date,
-              sales_starts_at,
-              sales_ends_at,
-              default_table_price,
-              location_text,
-              contact_name,
-              contact_phone,
-              allow_individual_sales,
-              sales_status,
-              is_active,
-              created_at,
-              updated_at,
-              org_units (
-                id,
-                type,
-                slug,
-                name
-              )
-            `
-          )
-          .order('event_date', { ascending: false })
-          .order('name', { ascending: true }),
-        loadAvailableOrgUnits(),
-      ]);
+      const orgUnitsPromise = loadAvailableOrgUnits();
+      const selectBase = `
+        id,
+        org_unit_id,
+        slug,
+        name,
+        description,
+        event_date,
+        sales_starts_at,
+        sales_ends_at,
+        default_table_price,
+        location_text,
+        contact_name,
+        contact_phone,
+        sales_status,
+        is_active,
+        created_at,
+        updated_at,
+        org_units (
+          id,
+          type,
+          slug,
+          name
+        )
+      `;
+      const selectWithIndividualSales = `
+        id,
+        org_unit_id,
+        slug,
+        name,
+        description,
+        event_date,
+        sales_starts_at,
+        sales_ends_at,
+        default_table_price,
+        location_text,
+        contact_name,
+        contact_phone,
+        allow_individual_sales,
+        sales_status,
+        is_active,
+        created_at,
+        updated_at,
+        org_units (
+          id,
+          type,
+          slug,
+          name
+        )
+      `;
 
-      if (eventsResponse.error) throw eventsResponse.error;
+      let eventsResponse = await supabase
+        .from('table_sales_events')
+        .select(selectWithIndividualSales)
+        .order('event_date', { ascending: false })
+        .order('name', { ascending: true });
 
-      setEvents((eventsResponse.data || []).map(normalizeEventRow));
+      let eventRows = eventsResponse.data || [];
+
+      if (eventsResponse.error) {
+        if (isMissingColumnError(eventsResponse.error, 'table_sales_events.allow_individual_sales')) {
+          setIndividualSalesSchemaReady(false);
+          warnIndividualSalesSchemaPending();
+
+          eventsResponse = await supabase
+            .from('table_sales_events')
+            .select(selectBase)
+            .order('event_date', { ascending: false })
+            .order('name', { ascending: true });
+
+          if (eventsResponse.error) throw eventsResponse.error;
+          eventRows = (eventsResponse.data || []).map((row) => ({ ...row, allow_individual_sales: false }));
+        } else {
+          throw eventsResponse.error;
+        }
+      } else {
+        setIndividualSalesSchemaReady(true);
+      }
+
+      const orgUnitsResponse = await orgUnitsPromise;
+      setEvents(eventRows.map(normalizeEventRow));
       setAvailableOrgUnits(orgUnitsResponse);
     } catch (error) {
       toast({
@@ -1221,7 +1283,7 @@ const ManageTableSales = () => {
 
     setLoadingReservations(true);
     try {
-      const { data, error } = await supabase
+      let response = await supabase
         .from('table_sales_reservations')
         .select(
           `
@@ -1255,8 +1317,54 @@ const ManageTableSales = () => {
         .eq('table_sales_event_id', eventId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setReservations((data || []).map(normalizeReservationRow));
+      let reservationRows = response.data || [];
+
+      if (response.error) {
+        if (isMissingColumnError(response.error, 'table_sales_reservations.reservation_mode')) {
+          setIndividualSalesSchemaReady(false);
+          warnIndividualSalesSchemaPending();
+
+          response = await supabase
+            .from('table_sales_reservations')
+            .select(
+              `
+                id,
+                table_sales_event_id,
+                table_id,
+                reservation_code,
+                status,
+                customer_name,
+                customer_phone,
+                customer_email,
+                group_name,
+                payment_status,
+                amount_due,
+                amount_paid,
+                payment_method,
+                expires_at,
+                confirmed_at,
+                notes,
+                created_at,
+                updated_at,
+                table_sales_tables (
+                  id,
+                  table_number,
+                  display_name,
+                  sector
+                )
+              `
+            )
+            .eq('table_sales_event_id', eventId)
+            .order('created_at', { ascending: false });
+
+          if (response.error) throw response.error;
+          reservationRows = (response.data || []).map((row) => ({ ...row, reservation_mode: 'table' }));
+        } else {
+          throw response.error;
+        }
+      }
+
+      setReservations(reservationRows.map(normalizeReservationRow));
     } catch (error) {
       toast({
         title: 'Erro',
@@ -1380,10 +1488,13 @@ const ManageTableSales = () => {
         location_text: trimOrNull(eventForm.locationText),
         contact_name: trimOrNull(eventForm.contactName),
         contact_phone: trimOrNull(eventForm.contactPhone),
-        allow_individual_sales: Boolean(eventForm.allowIndividualSales),
         sales_status: eventForm.salesStatus,
         is_active: Boolean(eventForm.isActive),
       };
+
+      if (individualSalesSchemaReady) {
+        payload.allow_individual_sales = Boolean(eventForm.allowIndividualSales);
+      }
 
       const response =
         eventDialogMode === 'create'
@@ -1701,7 +1812,6 @@ const ManageTableSales = () => {
       const payload = {
         table_sales_event_id: selectedEventId,
         table_id: reservationMode === 'table' ? reservationForm.tableId : null,
-        reservation_mode: reservationMode,
         customer_name: reservationForm.customerName.trim(),
         customer_phone: trimOrNull(reservationForm.customerPhone),
         customer_email: trimOrNull(reservationForm.customerEmail),
@@ -1714,6 +1824,10 @@ const ManageTableSales = () => {
         expires_at: trimOrNull(reservationForm.expiresAt),
         notes: trimOrNull(reservationForm.notes),
       };
+
+      if (individualSalesSchemaReady) {
+        payload.reservation_mode = reservationMode;
+      }
 
       const response =
         reservationDialogMode === 'create'
@@ -1788,6 +1902,7 @@ const ManageTableSales = () => {
         onSubmit={() => void saveEvent()}
         availableOrgUnits={availableOrgUnits}
         saving={savingEvent}
+        supportsIndividualSales={individualSalesSchemaReady}
       />
 
       <TableFormDialog
