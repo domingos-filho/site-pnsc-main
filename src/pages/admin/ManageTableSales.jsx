@@ -18,6 +18,11 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { isSupabaseReady, supabase } from '@/lib/supabaseClient';
+import {
+  getTableSalesSignedUrl,
+  removeTableSalesStorageObject,
+  uploadTableSalesEventImage,
+} from '@/lib/tableSales';
 
 const orgUnitTypeLabels = {
   community: 'Comunidade',
@@ -69,6 +74,11 @@ const createEmptyEventForm = (orgUnitId = '') => ({
   allowIndividualSales: false,
   salesStatus: 'draft',
   isActive: true,
+  metadata: {},
+  eventImageFile: null,
+  eventImagePreviewUrl: '',
+  eventImagePath: '',
+  removeEventImage: false,
 });
 
 const createEmptyTableForm = () => ({
@@ -111,6 +121,11 @@ const normalizeNestedRelation = (value) => (Array.isArray(value) ? value[0] : va
 
 const normalizeEventRow = (row) => ({
   ...row,
+  metadata: row.metadata || {},
+  event_image_path: row.metadata?.event_image_path || '',
+  event_image_file_name: row.metadata?.event_image_file_name || '',
+  event_image_mime_type: row.metadata?.event_image_mime_type || '',
+  event_image_size_bytes: row.metadata?.event_image_size_bytes || null,
   orgUnit: normalizeNestedRelation(row.org_units),
 });
 
@@ -264,6 +279,8 @@ const EventFormDialog = ({
   availableOrgUnits,
   saving,
   supportsIndividualSales,
+  onEventImageChange,
+  onRemoveEventImage,
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="w-[calc(100vw-1rem)] max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -425,6 +442,36 @@ const EventFormDialog = ({
             value={formState.description}
             onChange={(event) => setFormState((current) => ({ ...current, description: event.target.value }))}
           />
+        </div>
+
+        <div className="space-y-3 md:col-span-2">
+          <Label htmlFor="table-sales-event-image">Imagem do evento / layout das mesas</Label>
+          <Input
+            id="table-sales-event-image"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={onEventImageChange}
+          />
+          <p className="text-xs text-slate-500">
+            Use uma imagem para representar o evento ou orientar a distribuicao das mesas durante as reservas.
+          </p>
+          {formState.eventImagePreviewUrl ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <img
+                  src={formState.eventImagePreviewUrl}
+                  alt="Preview da imagem do evento"
+                  className="max-h-80 w-full object-contain bg-slate-100"
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={onRemoveEventImage}>
+                  Remover imagem
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
@@ -905,6 +952,8 @@ const ManageTableSales = () => {
   const [activeEventAccess, setActiveEventAccess] = useState({ loading: false, write: null, admin: null });
   const [individualSalesSchemaReady, setIndividualSalesSchemaReady] = useState(true);
   const individualSalesWarningShownRef = useRef(false);
+  const eventImageObjectUrlRef = useRef(null);
+  const [selectedEventImageUrl, setSelectedEventImageUrl] = useState('');
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, hasModuleAccess, refreshProfile } = useAuth();
@@ -915,6 +964,41 @@ const ManageTableSales = () => {
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId) || null,
     [events, selectedEventId]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSelectedEventImage = async () => {
+      if (!selectedEvent?.event_image_path) {
+        setSelectedEventImageUrl('');
+        return;
+      }
+
+      try {
+        const signedUrl = await getTableSalesSignedUrl(selectedEvent.event_image_path);
+        if (!cancelled) {
+          setSelectedEventImageUrl(signedUrl || '');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSelectedEventImageUrl('');
+        }
+      }
+    };
+
+    void loadSelectedEventImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEvent?.event_image_path]);
+
+  useEffect(
+    () => () => {
+      revokeEventImageObjectUrl();
+    },
+    []
   );
 
   const filteredEvents = useMemo(() => {
@@ -1180,6 +1264,40 @@ const ManageTableSales = () => {
     return [];
   };
 
+  const revokeEventImageObjectUrl = () => {
+    if (eventImageObjectUrlRef.current) {
+      URL.revokeObjectURL(eventImageObjectUrlRef.current);
+      eventImageObjectUrlRef.current = null;
+    }
+  };
+
+  const handleEventImageChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (!file) return;
+
+    revokeEventImageObjectUrl();
+    const previewUrl = URL.createObjectURL(file);
+    eventImageObjectUrlRef.current = previewUrl;
+
+    setEventForm((current) => ({
+      ...current,
+      eventImageFile: file,
+      eventImagePreviewUrl: previewUrl,
+      removeEventImage: false,
+    }));
+  };
+
+  const handleRemoveEventImage = () => {
+    revokeEventImageObjectUrl();
+    setEventForm((current) => ({
+      ...current,
+      eventImageFile: null,
+      eventImagePreviewUrl: '',
+      removeEventImage: true,
+    }));
+  };
+
   const warnIndividualSalesSchemaPending = () => {
     if (individualSalesWarningShownRef.current) return;
     individualSalesWarningShownRef.current = true;
@@ -1210,6 +1328,7 @@ const ManageTableSales = () => {
         location_text,
         contact_name,
         contact_phone,
+        metadata,
         sales_status,
         is_active,
         created_at,
@@ -1234,6 +1353,7 @@ const ManageTableSales = () => {
         location_text,
         contact_name,
         contact_phone,
+        metadata,
         allow_individual_sales,
         sales_status,
         is_active,
@@ -1464,6 +1584,7 @@ const ManageTableSales = () => {
   }, [selectedEventId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openCreateEventDialog = () => {
+    revokeEventImageObjectUrl();
     setEventDialogMode('create');
     setEditingEventId(null);
     setEventForm(createEmptyEventForm(availableOrgUnits[0]?.id || ''));
@@ -1471,6 +1592,7 @@ const ManageTableSales = () => {
   };
 
   const openEditEventDialog = (event) => {
+    revokeEventImageObjectUrl();
     setEventDialogMode('edit');
     setEditingEventId(event.id);
     setEventForm({
@@ -1488,6 +1610,11 @@ const ManageTableSales = () => {
       allowIndividualSales: Boolean(event.allow_individual_sales),
       salesStatus: event.sales_status || 'draft',
       isActive: Boolean(event.is_active),
+      metadata: event.metadata || {},
+      eventImageFile: null,
+      eventImagePreviewUrl: selectedEventImageUrl || '',
+      eventImagePath: event.event_image_path || '',
+      removeEventImage: false,
     });
     setEventDialogOpen(true);
   };
@@ -1532,6 +1659,7 @@ const ManageTableSales = () => {
         contact_phone: trimOrNull(eventForm.contactPhone),
         sales_status: eventForm.salesStatus,
         is_active: Boolean(eventForm.isActive),
+        metadata: eventForm.metadata || {},
       };
 
       if (individualSalesSchemaReady) {
@@ -1545,17 +1673,79 @@ const ManageTableSales = () => {
 
       if (response.error) throw response.error;
 
+      const savedEventId = response.data?.id || editingEventId;
+      let storageCleanupWarning = false;
+      const hasImageMutation = Boolean(eventForm.eventImageFile) || eventForm.removeEventImage;
+
+      if (savedEventId && hasImageMutation) {
+        let nextMetadata = { ...(eventForm.metadata || {}) };
+        delete nextMetadata.event_image_path;
+        delete nextMetadata.event_image_file_name;
+        delete nextMetadata.event_image_mime_type;
+        delete nextMetadata.event_image_size_bytes;
+
+        let uploadedImage = null;
+
+        if (eventForm.eventImageFile) {
+          uploadedImage = await uploadTableSalesEventImage({
+            tableSalesEventId: savedEventId,
+            file: eventForm.eventImageFile,
+          });
+
+          nextMetadata = {
+            ...nextMetadata,
+            event_image_path: uploadedImage.path,
+            event_image_file_name: uploadedImage.fileName,
+            event_image_mime_type: uploadedImage.mimeType,
+            event_image_size_bytes: uploadedImage.fileSizeBytes,
+          };
+        }
+
+        const { error: metadataError } = await supabase
+          .from('table_sales_events')
+          .update({ metadata: nextMetadata })
+          .eq('id', savedEventId);
+
+        if (metadataError) {
+          if (uploadedImage?.path) {
+            try {
+              await removeTableSalesStorageObject(uploadedImage.path);
+            } catch {
+              storageCleanupWarning = true;
+            }
+          }
+
+          throw metadataError;
+        }
+
+        if (eventForm.eventImagePath && eventForm.eventImagePath !== uploadedImage?.path) {
+          try {
+            await removeTableSalesStorageObject(eventForm.eventImagePath);
+          } catch {
+            storageCleanupWarning = true;
+          }
+        }
+      }
+
       await loadEvents();
       setEventDialogOpen(false);
+      revokeEventImageObjectUrl();
 
-      if (response.data?.id) {
-        setSelectedEventId(response.data.id);
+      if (savedEventId) {
+        setSelectedEventId(savedEventId);
       }
 
       toast({
         title: 'Sucesso!',
         description: `Evento ${eventDialogMode === 'create' ? 'criado' : 'atualizado'}.`,
       });
+
+      if (storageCleanupWarning) {
+        toast({
+          title: 'Aviso',
+          description: 'O evento foi salvo, mas uma imagem antiga nao conseguiu ser removida do storage.',
+        });
+      }
     } catch (error) {
       toast({
         title: 'Erro',
@@ -1574,6 +1764,16 @@ const ManageTableSales = () => {
 
     try {
       await ensureSupabaseWriteSession();
+      let storageCleanupWarning = false;
+
+      if (event.event_image_path) {
+        try {
+          await removeTableSalesStorageObject(event.event_image_path);
+        } catch {
+          storageCleanupWarning = true;
+        }
+      }
+
       const { error } = await supabase.from('table_sales_events').delete().eq('id', event.id);
       if (error) throw error;
 
@@ -1583,6 +1783,13 @@ const ManageTableSales = () => {
       }
 
       toast({ title: 'Sucesso!', description: 'Evento excluido.' });
+
+      if (storageCleanupWarning) {
+        toast({
+          title: 'Aviso',
+          description: 'O evento foi excluido, mas a imagem nao conseguiu ser removida do storage.',
+        });
+      }
     } catch (error) {
       toast({
         title: 'Erro',
@@ -1974,7 +2181,12 @@ const ManageTableSales = () => {
 
       <EventFormDialog
         open={eventDialogOpen}
-        onOpenChange={setEventDialogOpen}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            revokeEventImageObjectUrl();
+          }
+          setEventDialogOpen(nextOpen);
+        }}
         mode={eventDialogMode}
         formState={eventForm}
         setFormState={setEventForm}
@@ -1982,6 +2194,8 @@ const ManageTableSales = () => {
         availableOrgUnits={availableOrgUnits}
         saving={savingEvent}
         supportsIndividualSales={individualSalesSchemaReady}
+        onEventImageChange={handleEventImageChange}
+        onRemoveEventImage={handleRemoveEventImage}
       />
 
       <TableFormDialog
@@ -2287,6 +2501,24 @@ const ManageTableSales = () => {
                       <div className="mt-2 text-lg font-semibold text-emerald-700">{formatCurrency(totalReceived)}</div>
                     </div>
                   </div>
+
+                  {selectedEventImageUrl ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Imagem do evento / layout das mesas
+                      </div>
+                      <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        <img
+                          src={selectedEventImageUrl}
+                          alt={`Imagem do evento ${selectedEvent.name}`}
+                          className="max-h-[480px] w-full object-contain bg-slate-100"
+                        />
+                      </div>
+                      <p className="mt-3 text-sm text-slate-500">
+                        Use esta imagem como referencia visual do evento ou do layout de distribuicao das mesas.
+                      </p>
+                    </div>
+                  ) : null}
                 </>
               )}
             </motion.section>
