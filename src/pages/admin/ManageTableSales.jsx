@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, Pencil, Plus, RefreshCw, Trash2, Users } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Pencil, Plus, RefreshCw, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -93,6 +93,7 @@ const createEmptyReservationForm = () => ({
   reservationMode: 'table',
   tableId: '',
   customerName: '',
+  reservedForName: '',
   customerPhone: '',
   customerEmail: '',
   groupName: '',
@@ -103,6 +104,7 @@ const createEmptyReservationForm = () => ({
   paymentMethod: '',
   expiresAt: '',
   notes: '',
+  metadata: {},
 });
 
 const normalizeNestedRelation = (value) => (Array.isArray(value) ? value[0] : value || null);
@@ -114,6 +116,8 @@ const normalizeEventRow = (row) => ({
 
 const normalizeReservationRow = (row) => ({
   ...row,
+  metadata: row.metadata || {},
+  reserved_for_name: row.metadata?.reserved_for_name || '',
   table: normalizeNestedRelation(row.table_sales_tables),
 });
 
@@ -667,7 +671,7 @@ const ReservationFormDialog = ({
       <DialogHeader>
         <DialogTitle>{mode === 'create' ? 'Nova reserva' : 'Editar reserva'}</DialogTitle>
         <DialogDescription>
-          Registre o responsavel pela mesa, a situacao da reserva e o pagamento.
+          Registre quem fez a reserva, para quem a reserva foi feita, a situacao e o pagamento.
         </DialogDescription>
       </DialogHeader>
 
@@ -720,16 +724,27 @@ const ReservationFormDialog = ({
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="reservation-customer-name">Responsavel</Label>
+          <Label htmlFor="reservation-customer-name">Quem fez a reserva</Label>
           <Input
             id="reservation-customer-name"
             value={formState.customerName}
             onChange={(event) => setFormState((current) => ({ ...current, customerName: event.target.value }))}
+            placeholder="Quem fez a reserva"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="reservation-customer-phone">Telefone</Label>
+          <Label htmlFor="reservation-reserved-for-name">Reserva para</Label>
+          <Input
+            id="reservation-reserved-for-name"
+            value={formState.reservedForName}
+            onChange={(event) => setFormState((current) => ({ ...current, reservedForName: event.target.value }))}
+            placeholder="Para quem a reserva foi feita"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="reservation-customer-phone">Telefone de quem reservou</Label>
           <Input
             id="reservation-customer-phone"
             value={formState.customerPhone}
@@ -738,7 +753,7 @@ const ReservationFormDialog = ({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="reservation-customer-email">E-mail</Label>
+          <Label htmlFor="reservation-customer-email">E-mail de quem reservou</Label>
           <Input
             id="reservation-customer-email"
             type="email"
@@ -957,6 +972,7 @@ const ManageTableSales = () => {
       const haystack = [
         reservation.reservation_code,
         reservation.customer_name,
+        reservation.reserved_for_name,
         reservation.customer_phone,
         reservation.customer_email,
         reservation.group_name,
@@ -1000,6 +1016,18 @@ const ManageTableSales = () => {
     [reservations]
   );
 
+  const totalReceivable = useMemo(
+    () =>
+      reservations
+        .filter((reservation) => ['pending', 'confirmed'].includes(reservation.status))
+        .reduce(
+          (sum, reservation) =>
+            sum + Math.max(Number(reservation.amount_due || 0) - Number(reservation.amount_paid || 0), 0),
+          0
+        ),
+    [reservations]
+  );
+
   const totalReservedValue = useMemo(
     () =>
       reservations
@@ -1007,6 +1035,18 @@ const ManageTableSales = () => {
         .reduce((sum, reservation) => sum + Number(reservation.amount_due || 0), 0),
     [reservations]
   );
+
+  const overdueReservationsCount = useMemo(() => {
+    const now = Date.now();
+
+    return reservations.filter((reservation) => {
+      if (reservation.status === 'expired') return true;
+      if (reservation.status !== 'pending' || !reservation.expires_at) return false;
+
+      const expiresAtTime = new Date(reservation.expires_at).getTime();
+      return Number.isFinite(expiresAtTime) && expiresAtTime < now;
+    }).length;
+  }, [reservations]);
 
   const availableTablesCount = useMemo(
     () => tables.filter((table) => table.availability_status === 'available').length,
@@ -1296,6 +1336,7 @@ const ManageTableSales = () => {
             customer_phone,
             customer_email,
             group_name,
+            metadata,
             reservation_mode,
             payment_status,
             amount_due,
@@ -1337,6 +1378,7 @@ const ManageTableSales = () => {
                 customer_phone,
                 customer_email,
                 group_name,
+                metadata,
                 payment_status,
                 amount_due,
                 amount_paid,
@@ -1550,6 +1592,40 @@ const ManageTableSales = () => {
     }
   };
 
+  const closeEvent = async (event) => {
+    if (!event?.id || event.sales_status === 'closed') {
+      return;
+    }
+
+    if (!window.confirm(`Encerrar o evento "${event.name}"? O status comercial sera marcado como fechado.`)) {
+      return;
+    }
+
+    try {
+      await ensureSupabaseWriteSession();
+      const canWriteEvent = await checkEventPermission(event.id, 'write');
+      if (!canWriteEvent) {
+        throw new Error('Seu perfil nao possui permissao de escrita neste evento de mesas.');
+      }
+
+      const { error } = await supabase
+        .from('table_sales_events')
+        .update({ sales_status: 'closed' })
+        .eq('id', event.id);
+
+      if (error) throw error;
+
+      await loadEvents();
+      toast({ title: 'Sucesso!', description: 'Evento encerrado.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: formatTableSalesError(error, 'Nao foi possivel encerrar o evento.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const openCreateTableDialog = () => {
     if (!selectedEventId) return;
     setTableDialogMode('create');
@@ -1754,6 +1830,7 @@ const ManageTableSales = () => {
       amountDue: prefilledTable
         ? String(prefilledTable.effective_price ?? 0)
         : String(selectedEvent?.default_table_price ?? 0),
+      metadata: {},
     });
     setReservationDialogOpen(true);
   };
@@ -1765,6 +1842,7 @@ const ManageTableSales = () => {
       reservationMode: reservation.reservation_mode || 'table',
       tableId: reservation.table_id || '',
       customerName: reservation.customer_name || '',
+      reservedForName: reservation.reserved_for_name || '',
       customerPhone: reservation.customer_phone || '',
       customerEmail: reservation.customer_email || '',
       groupName: reservation.group_name || '',
@@ -1775,6 +1853,7 @@ const ManageTableSales = () => {
       paymentMethod: reservation.payment_method || '',
       expiresAt: formatDateTimeLocalInput(reservation.expires_at),
       notes: reservation.notes || '',
+      metadata: reservation.metadata || {},
     });
     setReservationDialogOpen(true);
   };
@@ -1788,14 +1867,15 @@ const ManageTableSales = () => {
     if (
       !selectedEventId ||
       !reservationForm.customerName.trim() ||
+      !reservationForm.reservedForName.trim() ||
       (reservationMode === 'table' && !reservationForm.tableId)
     ) {
       toast({
         title: 'Erro',
         description:
           reservationMode === 'individual'
-            ? 'Informe ao menos o responsavel pela reserva individual.'
-            : 'Informe a mesa e o responsavel pela reserva.',
+            ? 'Informe quem fez a reserva e para quem a reserva individual foi registrada.'
+            : 'Informe a mesa, quem fez a reserva e para quem ela foi registrada.',
         variant: 'destructive',
       });
       return;
@@ -1823,6 +1903,10 @@ const ManageTableSales = () => {
         payment_method: trimOrNull(reservationForm.paymentMethod),
         expires_at: trimOrNull(reservationForm.expiresAt),
         notes: trimOrNull(reservationForm.notes),
+        metadata: {
+          ...(reservationForm.metadata || {}),
+          reserved_for_name: reservationForm.reservedForName.trim(),
+        },
       };
 
       if (individualSalesSchemaReady) {
@@ -1961,7 +2045,7 @@ const ManageTableSales = () => {
         </div>
 
         <div className="container mx-auto space-y-6 px-4 py-6 md:px-6 md:py-8">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             <div className="rounded-2xl border bg-white p-5 shadow-sm">
               <div className="text-sm font-medium text-slate-500">Eventos visiveis</div>
               <div className="mt-2 text-3xl font-bold text-slate-900">{events.length}</div>
@@ -1977,6 +2061,14 @@ const ManageTableSales = () => {
             <div className="rounded-2xl border bg-white p-5 shadow-sm">
               <div className="text-sm font-medium text-slate-500">Valor recebido</div>
               <div className="mt-2 text-3xl font-bold text-emerald-600">{formatCurrency(totalReceived)}</div>
+            </div>
+            <div className="rounded-2xl border bg-white p-5 shadow-sm">
+              <div className="text-sm font-medium text-slate-500">Valor a receber</div>
+              <div className="mt-2 text-3xl font-bold text-rose-600">{formatCurrency(totalReceivable)}</div>
+            </div>
+            <div className="rounded-2xl border bg-white p-5 shadow-sm">
+              <div className="text-sm font-medium text-slate-500">Reservas vencidas</div>
+              <div className="mt-2 text-3xl font-bold text-slate-900">{overdueReservationsCount}</div>
             </div>
           </div>
 
@@ -2108,32 +2200,65 @@ const ManageTableSales = () => {
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      {activeEventAccess.write ? (
-                        <>
-                          <Button variant="outline" onClick={() => openEditEventDialog(selectedEvent)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Editar evento
-                          </Button>
-                          <Button onClick={openCreateTableDialog}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Nova mesa
-                          </Button>
-                          <Button variant="outline" onClick={openBatchTableDialog}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Gerar mesas
-                          </Button>
-                          <Button variant="secondary" onClick={() => openCreateReservationDialog()}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Nova reserva
-                          </Button>
-                        </>
+                    <div className="grid gap-3 sm:min-w-[340px]">
+                      {activeEventAccess.write || activeEventAccess.admin ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Acoes do evento</div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {activeEventAccess.write ? (
+                              <>
+                                <Button variant="outline" onClick={() => openEditEventDialog(selectedEvent)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Editar evento
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => void closeEvent(selectedEvent)}
+                                  disabled={selectedEvent.sales_status === 'closed'}
+                                >
+                                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                                  {selectedEvent.sales_status === 'closed' ? 'Evento encerrado' : 'Encerrar evento'}
+                                </Button>
+                              </>
+                            ) : null}
+                            {activeEventAccess.admin ? (
+                              <Button variant="destructive" onClick={() => void deleteEvent(selectedEvent)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir evento
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
                       ) : null}
-                      {activeEventAccess.admin ? (
-                        <Button variant="destructive" onClick={() => void deleteEvent(selectedEvent)}>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Excluir evento
-                        </Button>
+
+                      {activeEventAccess.write ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Acoes de mesas</div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button onClick={openCreateTableDialog}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Nova mesa
+                            </Button>
+                            <Button variant="outline" onClick={openBatchTableDialog}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Gerar mesas
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {activeEventAccess.write ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            Acoes de reservas
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button variant="secondary" onClick={() => openCreateReservationDialog()}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Nova reserva
+                            </Button>
+                          </div>
+                        </div>
                       ) : null}
                     </div>
                   </div>
@@ -2339,7 +2464,7 @@ const ManageTableSales = () => {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Reservas</h2>
-                  <p className="text-sm text-slate-500">Controle responsavel, status e pagamento.</p>
+                  <p className="text-sm text-slate-500">Controle quem reservou, para quem, status e pagamento.</p>
                 </div>
                 {selectedEvent && activeEventAccess.write ? (
                   <Button onClick={() => openCreateReservationDialog()}>
@@ -2353,7 +2478,7 @@ const ManageTableSales = () => {
                 <Input
                   value={reservationSearch}
                   onChange={(event) => setReservationSearch(event.target.value)}
-                  placeholder="Buscar por codigo, responsavel, mesa ou individual"
+                  placeholder="Buscar por codigo, quem reservou, para quem, mesa ou individual"
                 />
               </div>
 
@@ -2377,7 +2502,7 @@ const ManageTableSales = () => {
                         <tr>
                           <th className="pb-3">Codigo</th>
                           <th className="pb-3">Destino</th>
-                          <th className="pb-3">Responsavel</th>
+                          <th className="pb-3">Reserva</th>
                           <th className="pb-3">Status</th>
                           <th className="pb-3">Pagamento</th>
                           <th className="pb-3 text-right">Acoes</th>
@@ -2390,6 +2515,9 @@ const ManageTableSales = () => {
                             <td className="py-3 text-slate-700">{formatReservationTarget(reservation)}</td>
                             <td className="py-3">
                               <div className="font-semibold text-slate-900">{reservation.customer_name}</div>
+                              <div className="text-xs text-slate-500">
+                                Para: {reservation.reserved_for_name || reservation.customer_name}
+                              </div>
                               <div className="text-xs text-slate-500">{reservation.customer_phone || '-'}</div>
                             </td>
                             <td className="py-3">
@@ -2437,6 +2565,9 @@ const ManageTableSales = () => {
                             <div className="font-mono text-xs text-slate-500">{reservation.reservation_code}</div>
                             <div className="mt-1 text-base font-semibold text-slate-900">
                               {reservation.customer_name}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              Para: {reservation.reserved_for_name || reservation.customer_name}
                             </div>
                           </div>
                           <span
