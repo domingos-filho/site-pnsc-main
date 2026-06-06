@@ -52,6 +52,8 @@ const paymentStatusOptions = [
   { value: 'refunded', label: 'Estornado' },
 ];
 
+const TABLES_PER_PAGE = 50;
+
 const createEmptyEventForm = (orgUnitId = '') => ({
   orgUnitId,
   name: '',
@@ -64,6 +66,7 @@ const createEmptyEventForm = (orgUnitId = '') => ({
   locationText: '',
   contactName: '',
   contactPhone: '',
+  allowIndividualSales: false,
   salesStatus: 'draft',
   isActive: true,
 });
@@ -87,6 +90,7 @@ const createEmptyTableBatchForm = (startNumber = '1') => ({
 });
 
 const createEmptyReservationForm = () => ({
+  reservationMode: 'table',
   tableId: '',
   customerName: '',
   customerPhone: '',
@@ -132,6 +136,34 @@ const parseNumberOrZero = (value) => {
 const parsePositiveInteger = (value) => {
   const parsed = Number.parseInt(String(value || '').trim(), 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const normalizeTableNumber = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  if (/^\d+$/.test(normalized)) return normalized.padStart(3, '0');
+  return normalized;
+};
+
+const formatTableLabel = (value) => {
+  const normalized = normalizeTableNumber(value);
+  return normalized ? `Mesa ${normalized}` : 'Mesa -';
+};
+
+const formatReservationTarget = (reservation) =>
+  reservation?.reservation_mode === 'individual' ? 'Individual' : formatTableLabel(reservation?.table?.table_number);
+
+const compareTableNumbers = (leftValue, rightValue) => {
+  const left = String(leftValue || '').trim();
+  const right = String(rightValue || '').trim();
+  const leftIsNumeric = /^\d+$/.test(left);
+  const rightIsNumeric = /^\d+$/.test(right);
+
+  if (leftIsNumeric && rightIsNumeric) {
+    return Number(left) - Number(right);
+  }
+
+  return left.localeCompare(right, 'pt-BR', { numeric: true, sensitivity: 'base' });
 };
 
 const normalizeSearch = (value) => String(value || '').trim().toLocaleLowerCase('pt-BR');
@@ -309,6 +341,24 @@ const EventFormDialog = ({
               setFormState((current) => ({ ...current, defaultTablePrice: event.target.value }))
             }
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="table-sales-allow-individual">Permite venda individual?</Label>
+          <select
+            id="table-sales-allow-individual"
+            value={formState.allowIndividualSales ? 'yes' : 'no'}
+            onChange={(event) =>
+              setFormState((current) => ({
+                ...current,
+                allowIndividualSales: event.target.value === 'yes',
+              }))
+            }
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="no">Nao</option>
+            <option value="yes">Sim</option>
+          </select>
         </div>
 
         <div className="space-y-2">
@@ -575,6 +625,26 @@ const BatchTableFormDialog = ({ open, onOpenChange, formState, setFormState, onS
   </Dialog>
 );
 
+const TablePaginationControls = ({ page, totalPages, totalItems, onPrevious, onNext }) => {
+  if (totalItems <= TABLES_PER_PAGE) return null;
+
+  return (
+    <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-sm text-slate-600">
+        Pagina {page} de {totalPages} · {totalItems} mesas
+      </div>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={onPrevious} disabled={page <= 1}>
+          Anterior
+        </Button>
+        <Button variant="outline" size="sm" onClick={onNext} disabled={page >= totalPages}>
+          Proxima
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const ReservationFormDialog = ({
   open,
   onOpenChange,
@@ -584,6 +654,7 @@ const ReservationFormDialog = ({
   onSubmit,
   saving,
   tableOptions,
+  allowIndividualSales,
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="w-[calc(100vw-1rem)] max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -595,6 +666,28 @@ const ReservationFormDialog = ({
       </DialogHeader>
 
       <div className="grid gap-4 md:grid-cols-2">
+        {allowIndividualSales ? (
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="reservation-mode">Tipo da reserva</Label>
+            <select
+              id="reservation-mode"
+              value={formState.reservationMode}
+              onChange={(event) =>
+                setFormState((current) => ({
+                  ...current,
+                  reservationMode: event.target.value,
+                  tableId: event.target.value === 'individual' ? '' : current.tableId,
+                }))
+              }
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="table">Mesa</option>
+              <option value="individual">Individual</option>
+            </select>
+          </div>
+        ) : null}
+
+        {formState.reservationMode === 'table' ? (
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="reservation-table">Mesa</Label>
           <select
@@ -606,7 +699,7 @@ const ReservationFormDialog = ({
             <option value="">Selecione</option>
             {tableOptions.map((table) => (
               <option key={table.table_id} value={table.table_id}>
-                Mesa {table.table_number}
+                {formatTableLabel(table.table_number)}
                 {table.display_name ? ` · ${table.display_name}` : ''}
                 {table.sector ? ` · ${table.sector}` : ''}
                 {` · ${formatCurrency(table.effective_price)}`}
@@ -614,6 +707,11 @@ const ReservationFormDialog = ({
             ))}
           </select>
         </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 md:col-span-2">
+            Esta reserva sera registrada como venda individual, sem vinculo com uma mesa especifica.
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="reservation-customer-name">Responsavel</Label>
@@ -685,7 +783,9 @@ const ReservationFormDialog = ({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="reservation-amount-due">Valor da mesa</Label>
+          <Label htmlFor="reservation-amount-due">
+            {formState.reservationMode === 'individual' ? 'Valor da reserva' : 'Valor da mesa'}
+          </Label>
           <Input
             id="reservation-amount-due"
             type="number"
@@ -775,6 +875,7 @@ const ManageTableSales = () => {
   const [tableBatchDialogOpen, setTableBatchDialogOpen] = useState(false);
   const [tableBatchForm, setTableBatchForm] = useState(createEmptyTableBatchForm());
   const [savingTableBatch, setSavingTableBatch] = useState(false);
+  const [tablePage, setTablePage] = useState(1);
   const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
   const [reservationDialogMode, setReservationDialogMode] = useState('create');
   const [reservationForm, setReservationForm] = useState(createEmptyReservationForm());
@@ -812,14 +913,34 @@ const ManageTableSales = () => {
 
   const filteredTables = useMemo(() => {
     const term = normalizeSearch(tableSearch);
-    if (!term) return tables;
-    return tables.filter((table) => {
-      const haystack = [table.table_number, table.display_name, table.sector, table.customer_name, table.notes]
-        .filter(Boolean)
-        .join(' ');
-      return normalizeSearch(haystack).includes(term);
-    });
+    const filtered = !term
+      ? tables
+      : tables.filter((table) => {
+          const haystack = [
+            table.table_number,
+            normalizeTableNumber(table.table_number),
+            table.display_name,
+            table.sector,
+            table.customer_name,
+            table.notes,
+          ]
+            .filter(Boolean)
+            .join(' ');
+          return normalizeSearch(haystack).includes(term);
+        });
+
+    return [...filtered].sort((leftTable, rightTable) => compareTableNumbers(leftTable.table_number, rightTable.table_number));
   }, [tableSearch, tables]);
+
+  const totalTablePages = useMemo(
+    () => Math.max(1, Math.ceil(filteredTables.length / TABLES_PER_PAGE)),
+    [filteredTables.length]
+  );
+
+  const paginatedTables = useMemo(() => {
+    const startIndex = (tablePage - 1) * TABLES_PER_PAGE;
+    return filteredTables.slice(startIndex, startIndex + TABLES_PER_PAGE);
+  }, [filteredTables, tablePage]);
 
   const filteredReservations = useMemo(() => {
     const term = normalizeSearch(reservationSearch);
@@ -832,6 +953,7 @@ const ManageTableSales = () => {
         reservation.customer_email,
         reservation.group_name,
         reservation.table?.table_number,
+        reservation.reservation_mode === 'individual' ? 'individual' : 'mesa',
       ]
         .filter(Boolean)
         .join(' ');
@@ -862,7 +984,7 @@ const ManageTableSales = () => {
       return Number.isInteger(parsed) && parsed > maxValue ? parsed : maxValue;
     }, 0);
 
-    return String(maxNumericTableNumber + 1);
+    return normalizeTableNumber(maxNumericTableNumber + 1);
   }, [tables]);
 
   const totalReceived = useMemo(
@@ -882,6 +1004,16 @@ const ManageTableSales = () => {
     () => tables.filter((table) => table.availability_status === 'available').length,
     [tables]
   );
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [selectedEventId, tableSearch]);
+
+  useEffect(() => {
+    if (tablePage > totalTablePages) {
+      setTablePage(totalTablePages);
+    }
+  }, [tablePage, totalTablePages]);
 
   const loadActiveEventAccess = async (eventId) => {
     if (!eventId || !isSupabaseReady) {
@@ -1022,6 +1154,7 @@ const ManageTableSales = () => {
               location_text,
               contact_name,
               contact_phone,
+              allow_individual_sales,
               sales_status,
               is_active,
               created_at,
@@ -1101,6 +1234,7 @@ const ManageTableSales = () => {
             customer_phone,
             customer_email,
             group_name,
+            reservation_mode,
             payment_status,
             amount_due,
             amount_paid,
@@ -1201,6 +1335,7 @@ const ManageTableSales = () => {
       locationText: event.location_text || '',
       contactName: event.contact_name || '',
       contactPhone: event.contact_phone || '',
+      allowIndividualSales: Boolean(event.allow_individual_sales),
       salesStatus: event.sales_status || 'draft',
       isActive: Boolean(event.is_active),
     });
@@ -1245,6 +1380,7 @@ const ManageTableSales = () => {
         location_text: trimOrNull(eventForm.locationText),
         contact_name: trimOrNull(eventForm.contactName),
         contact_phone: trimOrNull(eventForm.contactPhone),
+        allow_individual_sales: Boolean(eventForm.allowIndividualSales),
         sales_status: eventForm.salesStatus,
         is_active: Boolean(eventForm.isActive),
       };
@@ -1321,7 +1457,7 @@ const ManageTableSales = () => {
     setTableDialogMode('edit');
     setEditingTableId(table.table_id);
     setTableForm({
-      tableNumber: table.table_number || '',
+      tableNumber: normalizeTableNumber(table.table_number || ''),
       displayName: table.display_name || '',
       sector: table.sector || '',
       capacity: String(table.capacity ?? 4),
@@ -1352,7 +1488,7 @@ const ManageTableSales = () => {
 
       const payload = {
         table_sales_event_id: selectedEventId,
-        table_number: tableForm.tableNumber.trim(),
+        table_number: normalizeTableNumber(tableForm.tableNumber),
         display_name: trimOrNull(tableForm.displayName),
         sector: trimOrNull(tableForm.sector),
         capacity: parseNumberOrZero(tableForm.capacity),
@@ -1419,7 +1555,9 @@ const ManageTableSales = () => {
         throw new Error('Seu perfil nao possui permissao de escrita neste evento de mesas.');
       }
 
-      const generatedNumbers = Array.from({ length: quantity }, (_, index) => String(startNumber + index));
+      const generatedNumbers = Array.from({ length: quantity }, (_, index) =>
+        normalizeTableNumber(String(startNumber + index))
+      );
       const { data: existingTables, error: existingTablesError } = await supabase
         .from('table_sales_tables')
         .select('table_number')
@@ -1468,7 +1606,7 @@ const ManageTableSales = () => {
   };
 
   const deleteTable = async (table) => {
-    if (!window.confirm(`Excluir a mesa ${table.table_number}?`)) {
+    if (!window.confirm(`Excluir a ${formatTableLabel(table.table_number)}?`)) {
       return;
     }
 
@@ -1500,8 +1638,11 @@ const ManageTableSales = () => {
     setEditingReservationId(null);
     setReservationForm({
       ...createEmptyReservationForm(),
+      reservationMode: 'table',
       tableId: prefilledTable?.table_id || '',
-      amountDue: prefilledTable ? String(prefilledTable.effective_price ?? 0) : '',
+      amountDue: prefilledTable
+        ? String(prefilledTable.effective_price ?? 0)
+        : String(selectedEvent?.default_table_price ?? 0),
     });
     setReservationDialogOpen(true);
   };
@@ -1510,6 +1651,7 @@ const ManageTableSales = () => {
     setReservationDialogMode('edit');
     setEditingReservationId(reservation.id);
     setReservationForm({
+      reservationMode: reservation.reservation_mode || 'table',
       tableId: reservation.table_id || '',
       customerName: reservation.customer_name || '',
       customerPhone: reservation.customer_phone || '',
@@ -1527,10 +1669,22 @@ const ManageTableSales = () => {
   };
 
   const saveReservation = async () => {
-    if (!selectedEventId || !reservationForm.tableId || !reservationForm.customerName.trim()) {
+    const reservationMode =
+      selectedEvent?.allow_individual_sales && reservationForm.reservationMode === 'individual'
+        ? 'individual'
+        : 'table';
+
+    if (
+      !selectedEventId ||
+      !reservationForm.customerName.trim() ||
+      (reservationMode === 'table' && !reservationForm.tableId)
+    ) {
       toast({
         title: 'Erro',
-        description: 'Informe a mesa e o responsavel pela reserva.',
+        description:
+          reservationMode === 'individual'
+            ? 'Informe ao menos o responsavel pela reserva individual.'
+            : 'Informe a mesa e o responsavel pela reserva.',
         variant: 'destructive',
       });
       return;
@@ -1546,7 +1700,8 @@ const ManageTableSales = () => {
 
       const payload = {
         table_sales_event_id: selectedEventId,
-        table_id: reservationForm.tableId,
+        table_id: reservationMode === 'table' ? reservationForm.tableId : null,
+        reservation_mode: reservationMode,
         customer_name: reservationForm.customerName.trim(),
         customer_phone: trimOrNull(reservationForm.customerPhone),
         customer_email: trimOrNull(reservationForm.customerEmail),
@@ -1663,6 +1818,7 @@ const ManageTableSales = () => {
         onSubmit={() => void saveReservation()}
         saving={savingReservation}
         tableOptions={selectableTablesForReservation}
+        allowIndividualSales={Boolean(selectedEvent?.allow_individual_sales)}
       />
 
       <div className="min-h-screen bg-slate-50">
@@ -1831,6 +1987,11 @@ const ManageTableSales = () => {
                         <span className="rounded-full bg-slate-100 px-3 py-1">
                           Previsto: {formatCurrency(totalReservedValue)}
                         </span>
+                        {selectedEvent.allow_individual_sales ? (
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-800">
+                            Venda individual habilitada
+                          </span>
+                        ) : null}
                       </div>
                       <p className="mt-4 max-w-3xl text-sm text-slate-600">
                         {selectedEvent.description || 'Sem descricao cadastrada.'}
@@ -1957,10 +2118,10 @@ const ManageTableSales = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredTables.map((table) => (
+                        {paginatedTables.map((table) => (
                           <tr key={table.table_id} className="border-t border-slate-100">
                             <td className="py-3">
-                              <div className="font-semibold text-slate-900">Mesa {table.table_number}</div>
+                              <div className="font-semibold text-slate-900">{formatTableLabel(table.table_number)}</div>
                               <div className="text-xs text-slate-500">{table.display_name || '-'}</div>
                             </td>
                             <td className="py-3 text-slate-700">{table.sector || '-'}</td>
@@ -2003,11 +2164,11 @@ const ManageTableSales = () => {
                   </div>
 
                   <div className="mt-4 space-y-3 lg:hidden">
-                    {filteredTables.map((table) => (
+                    {paginatedTables.map((table) => (
                       <div key={table.table_id} className="rounded-2xl border border-slate-200 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-base font-semibold text-slate-900">Mesa {table.table_number}</div>
+                            <div className="text-base font-semibold text-slate-900">{formatTableLabel(table.table_number)}</div>
                             <div className="text-sm text-slate-500">{table.display_name || table.sector || '-'}</div>
                           </div>
                           <span
@@ -2047,6 +2208,14 @@ const ManageTableSales = () => {
                       </div>
                     ))}
                   </div>
+
+                  <TablePaginationControls
+                    page={tablePage}
+                    totalPages={totalTablePages}
+                    totalItems={filteredTables.length}
+                    onPrevious={() => setTablePage((current) => Math.max(1, current - 1))}
+                    onNext={() => setTablePage((current) => Math.min(totalTablePages, current + 1))}
+                  />
                 </>
               )}
             </motion.section>
@@ -2074,7 +2243,7 @@ const ManageTableSales = () => {
                 <Input
                   value={reservationSearch}
                   onChange={(event) => setReservationSearch(event.target.value)}
-                  placeholder="Buscar por codigo, responsavel ou mesa"
+                  placeholder="Buscar por codigo, responsavel, mesa ou individual"
                 />
               </div>
 
@@ -2097,7 +2266,7 @@ const ManageTableSales = () => {
                       <thead className="text-xs uppercase tracking-[0.14em] text-slate-500">
                         <tr>
                           <th className="pb-3">Codigo</th>
-                          <th className="pb-3">Mesa</th>
+                          <th className="pb-3">Destino</th>
                           <th className="pb-3">Responsavel</th>
                           <th className="pb-3">Status</th>
                           <th className="pb-3">Pagamento</th>
@@ -2108,7 +2277,7 @@ const ManageTableSales = () => {
                         {filteredReservations.map((reservation) => (
                           <tr key={reservation.id} className="border-t border-slate-100">
                             <td className="py-3 font-mono text-xs text-slate-700">{reservation.reservation_code}</td>
-                            <td className="py-3 text-slate-700">Mesa {reservation.table?.table_number || '-'}</td>
+                            <td className="py-3 text-slate-700">{formatReservationTarget(reservation)}</td>
                             <td className="py-3">
                               <div className="font-semibold text-slate-900">{reservation.customer_name}</div>
                               <div className="text-xs text-slate-500">{reservation.customer_phone || '-'}</div>
@@ -2170,7 +2339,7 @@ const ManageTableSales = () => {
                           </span>
                         </div>
                         <div className="mt-3 space-y-1 text-sm text-slate-600">
-                          <div>Mesa {reservation.table?.table_number || '-'}</div>
+                          <div>{formatReservationTarget(reservation)}</div>
                           <div>{reservation.customer_phone || '-'}</div>
                           <div>
                             Pago {formatCurrency(reservation.amount_paid)} de {formatCurrency(reservation.amount_due)}

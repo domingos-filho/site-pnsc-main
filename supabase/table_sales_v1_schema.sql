@@ -15,6 +15,7 @@ create table if not exists public.table_sales_events (
   location_text text,
   contact_name text,
   contact_phone text,
+  allow_individual_sales boolean not null default false,
   sales_status text not null default 'draft',
   is_active boolean not null default true,
   metadata jsonb not null default '{}'::jsonb,
@@ -46,7 +47,8 @@ create table if not exists public.table_sales_tables (
 create table if not exists public.table_sales_reservations (
   id uuid primary key default gen_random_uuid(),
   table_sales_event_id uuid not null references public.table_sales_events(id) on delete cascade,
-  table_id uuid not null references public.table_sales_tables(id) on delete restrict,
+  table_id uuid references public.table_sales_tables(id) on delete restrict,
+  reservation_mode text not null default 'table',
   reservation_code text not null,
   status text not null default 'pending',
   customer_name text not null,
@@ -122,6 +124,19 @@ alter table public.table_sales_reservations
   add constraint table_sales_reservations_status_check
   check (status in ('pending', 'confirmed', 'cancelled', 'expired'));
 
+alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_mode_check;
+alter table public.table_sales_reservations
+  add constraint table_sales_reservations_mode_check
+  check (reservation_mode in ('table', 'individual'));
+
+alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_target_check;
+alter table public.table_sales_reservations
+  add constraint table_sales_reservations_target_check
+  check (
+    (reservation_mode = 'table' and table_id is not null)
+    or (reservation_mode = 'individual' and table_id is null)
+  );
+
 alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_payment_status_check;
 alter table public.table_sales_reservations
   add constraint table_sales_reservations_payment_status_check
@@ -138,7 +153,7 @@ alter table public.table_sales_reservations
   check (amount_paid >= 0);
 
 comment on table public.table_sales_events is
-  'Eventos operacionais de venda e reserva de mesas por unidade organizacional.';
+  'Eventos operacionais de venda e reserva de mesas por unidade organizacional, com opcao de venda individual.';
 
 comment on table public.table_sales_tables is
   'Mesas disponiveis para reserva em cada evento.';
@@ -353,6 +368,7 @@ begin
   new.location_text := nullif(btrim(coalesce(new.location_text, '')), '');
   new.contact_name := nullif(btrim(coalesce(new.contact_name, '')), '');
   new.contact_phone := nullif(btrim(coalesce(new.contact_phone, '')), '');
+  new.allow_individual_sales := coalesce(new.allow_individual_sales, false);
   new.sales_status := coalesce(nullif(btrim(coalesce(new.sales_status, '')), ''), 'draft');
   new.default_table_price := coalesce(new.default_table_price, 0);
   new.metadata := coalesce(new.metadata, '{}'::jsonb);
@@ -398,7 +414,13 @@ language plpgsql
 as $$
 declare
   selected_table record;
+  selected_event record;
+  resolved_table_price numeric(10,2);
+  resolved_default_price numeric(10,2);
 begin
+  new.reservation_mode := coalesce(nullif(btrim(coalesce(new.reservation_mode, '')), ''), 'table');
+
+  if new.reservation_mode = 'table' then
   select
     t.id,
     t.table_sales_event_id,
@@ -410,16 +432,39 @@ begin
   join public.table_sales_events e on e.id = t.table_sales_event_id
   where t.id = new.table_id;
 
-  if selected_table.id is null then
-    raise exception 'mesa nao encontrada para a reserva';
-  end if;
+    if selected_table.id is null then
+      raise exception 'mesa nao encontrada para a reserva';
+    end if;
 
-  if new.table_sales_event_id is null or new.table_sales_event_id <> selected_table.table_sales_event_id then
-    new.table_sales_event_id := selected_table.table_sales_event_id;
-  end if;
+    if new.table_sales_event_id is null or new.table_sales_event_id <> selected_table.table_sales_event_id then
+      new.table_sales_event_id := selected_table.table_sales_event_id;
+    end if;
 
-  if selected_table.status = 'blocked' and coalesce(new.status, 'pending') in ('pending', 'confirmed') then
-    raise exception 'nao e permitido reservar uma mesa bloqueada';
+    if selected_table.status = 'blocked' and coalesce(new.status, 'pending') in ('pending', 'confirmed') then
+      raise exception 'nao e permitido reservar uma mesa bloqueada';
+    end if;
+
+    resolved_table_price := selected_table.base_price;
+    resolved_default_price := selected_table.default_table_price;
+  else
+    select
+      e.id,
+      e.allow_individual_sales,
+      e.default_table_price
+    into selected_event
+    from public.table_sales_events e
+    where e.id = new.table_sales_event_id;
+
+    if selected_event.id is null then
+      raise exception 'evento nao encontrado para a reserva individual';
+    end if;
+
+    if not coalesce(selected_event.allow_individual_sales, false) then
+      raise exception 'este evento nao permite venda individual';
+    end if;
+
+    new.table_id := null;
+    resolved_default_price := selected_event.default_table_price;
   end if;
 
   new.customer_name := btrim(coalesce(new.customer_name, ''));
@@ -430,7 +475,12 @@ begin
   new.notes := nullif(btrim(coalesce(new.notes, '')), '');
   new.status := coalesce(nullif(btrim(coalesce(new.status, '')), ''), 'pending');
   new.payment_status := coalesce(nullif(btrim(coalesce(new.payment_status, '')), ''), 'pending');
-  new.amount_due := coalesce(new.amount_due, selected_table.base_price, selected_table.default_table_price, 0);
+  new.amount_due := coalesce(
+    new.amount_due,
+    resolved_table_price,
+    resolved_default_price,
+    0
+  );
   new.amount_paid := coalesce(new.amount_paid, 0);
   new.metadata := coalesce(new.metadata, '{}'::jsonb);
   new.reservation_code := coalesce(
