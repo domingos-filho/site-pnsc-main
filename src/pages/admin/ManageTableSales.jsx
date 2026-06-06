@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, CheckCircle2, Pencil, Plus, RefreshCw, Trash2, Users } from 'lucide-react';
+import { BookOpen, CalendarDays, CheckCircle2, Pencil, Plus, RefreshCw, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -712,6 +712,101 @@ const TablePaginationControls = ({ page, totalPages, totalItems, onPrevious, onN
   );
 };
 
+const TableSalesManualDialog = ({ open, onOpenChange }) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="w-[calc(100vw-1rem)] max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>Manual curto de operacao da reserva de mesas</DialogTitle>
+        <DialogDescription>
+          Guia rapido para cadastrar eventos, organizar mesas e registrar reservas sem quebrar o fluxo de negocio.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-5">
+        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-600">Fluxo recomendado</h3>
+          <div className="mt-3 space-y-2 text-sm text-slate-700">
+            <p><strong>1.</strong> Crie o evento com nome, data, unidade, preco padrao e janela de venda.</p>
+            <p><strong>2.</strong> Se precisar, envie uma imagem do evento ou um layout de distribuicao das mesas para orientar a equipe.</p>
+            <p><strong>3.</strong> Cadastre as mesas manualmente ou use a geracao em lote.</p>
+            <p><strong>4.</strong> Registre as reservas informando quem fez a reserva e para quem ela foi feita.</p>
+            <p><strong>5.</strong> Confirme a reserva somente quando houver pagamento parcial ou total.</p>
+            <p><strong>6.</strong> Ao final das vendas, use <strong>Encerrar evento</strong> para fechar a operacao comercial.</p>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-600">Status da reserva</h3>
+            <div className="mt-3 space-y-2 text-sm text-slate-700">
+              <p><strong>Pendente:</strong> a mesa ou vaga ainda esta em negociacao e o prazo de expiracao continua valendo.</p>
+              <p><strong>Confirmada:</strong> a reserva ja recebeu pagamento parcial ou total.</p>
+              <p><strong>Cancelada:</strong> a reserva nao sera mais utilizada.</p>
+              <p><strong>Expirada:</strong> a reserva perdeu o prazo sem confirmacao.</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-600">Status do pagamento</h3>
+            <div className="mt-3 space-y-2 text-sm text-slate-700">
+              <p><strong>Pendente:</strong> nada foi recebido ainda.</p>
+              <p><strong>Parcial:</strong> houve entrada, mas ainda falta receber parte do valor.</p>
+              <p><strong>Pago:</strong> o valor total foi quitado.</p>
+              <p><strong>Estornado:</strong> o valor foi devolvido e a reserva precisa de revisao operacional.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-amber-800">Regra principal do modulo</h3>
+          <div className="mt-3 space-y-2 text-sm text-amber-900">
+            <p>Reserva <strong>confirmada</strong> nao pode ficar com pagamento <strong>pendente</strong>.</p>
+            <p>Se o valor ainda nao entrou, deixe a reserva como <strong>pendente</strong>.</p>
+            <p>Quando houver entrada de valor, a reserva pode virar <strong>confirmada</strong> com pagamento <strong>parcial</strong> ou <strong>pago</strong>.</p>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-600">Quando usar cada cadastro</h3>
+            <div className="mt-3 space-y-2 text-sm text-slate-700">
+              <p><strong>Mesa:</strong> quando a reserva ocupa uma mesa especifica.</p>
+              <p><strong>Individual:</strong> quando o evento estiver configurado para venda individual e a reserva nao depender de uma mesa.</p>
+              <p><strong>Reserva para:</strong> use para identificar o beneficiario real quando quem paga ou solicita e outra pessoa.</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-600">Boas praticas</h3>
+            <div className="mt-3 space-y-2 text-sm text-slate-700">
+              <p>Preencha telefone e e-mail de quem fez a reserva para facilitar cobranca e confirmacao.</p>
+              <p>Use a imagem do evento ou do layout das mesas para orientar a equipe no balcao.</p>
+              <p>Revise periodicamente as reservas pendentes com prazo vencido.</p>
+              <p>Feche o evento quando a operacao terminar, evitando novas reservas por engano.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-600">Leitura rapida dos cards</h3>
+          <div className="mt-3 space-y-2 text-sm text-slate-700">
+            <p><strong>Reservas ativas:</strong> soma das reservas pendentes e confirmadas.</p>
+            <p><strong>Valor recebido:</strong> total efetivamente pago.</p>
+            <p><strong>Valor a receber:</strong> saldo que ainda falta receber das reservas ativas.</p>
+            <p><strong>Reservas vencidas:</strong> reservas pendentes cujo prazo expirou ou reservas ja marcadas como expiradas.</p>
+          </div>
+        </section>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          Fechar manual
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
 const ReservationFormDialog = ({
   open,
   onOpenChange,
@@ -998,6 +1093,7 @@ const ManageTableSales = () => {
   const [reservationForm, setReservationForm] = useState(createEmptyReservationForm());
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [savingReservation, setSavingReservation] = useState(false);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [activeEventAccess, setActiveEventAccess] = useState({ loading: false, write: null, admin: null });
   const [individualSalesSchemaReady, setIndividualSalesSchemaReady] = useState(true);
   const individualSalesWarningShownRef = useRef(false);
@@ -2292,6 +2388,8 @@ const ManageTableSales = () => {
         allowIndividualSales={Boolean(selectedEvent?.allow_individual_sales)}
       />
 
+      <TableSalesManualDialog open={manualDialogOpen} onOpenChange={setManualDialogOpen} />
+
       <div className="min-h-screen bg-slate-50">
         <div className="bg-gradient-to-br from-blue-700 to-blue-900 text-white">
           <div className="container mx-auto px-4 py-10 md:px-6">
@@ -2309,6 +2407,10 @@ const ManageTableSales = () => {
                 <Button variant="secondary" onClick={() => void loadEvents()} disabled={loadingEvents}>
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {loadingEvents ? 'Atualizando...' : 'Atualizar'}
+                </Button>
+                <Button variant="outline" className="border-white/30 bg-white/10 text-white hover:bg-white/20" onClick={() => setManualDialogOpen(true)}>
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Manual de operacao
                 </Button>
                 {canWriteTableSales ? (
                   <Button onClick={openCreateEventDialog}>
