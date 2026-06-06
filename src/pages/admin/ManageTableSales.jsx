@@ -1831,13 +1831,8 @@ const ManageTableSales = () => {
 
       const response =
         reservationDialogMode === 'create'
-          ? await supabase.from('table_sales_reservations').insert(payload).select('id').single()
-          : await supabase
-              .from('table_sales_reservations')
-              .update(payload)
-              .eq('id', editingReservationId)
-              .select('id')
-              .single();
+          ? await supabase.from('table_sales_reservations').insert(payload)
+          : await supabase.from('table_sales_reservations').update(payload).eq('id', editingReservationId);
 
       if (response.error) throw response.error;
 
