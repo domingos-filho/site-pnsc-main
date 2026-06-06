@@ -152,6 +152,16 @@ const parseNumberOrZero = (value) => {
   return parsed === null ? 0 : parsed;
 };
 
+const deriveConfirmedPaymentStatus = (amountDue, amountPaid) => {
+  const due = Math.max(parseNumberOrZero(amountDue), 0);
+  const paid = Math.max(parseNumberOrZero(amountPaid), 0);
+
+  if (due <= 0) return 'paid';
+  if (paid <= 0) return 'pending';
+  if (paid < due) return 'partial';
+  return 'paid';
+};
+
 const parsePositiveInteger = (value) => {
   const parsed = Number.parseInt(String(value || '').trim(), 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -823,7 +833,19 @@ const ReservationFormDialog = ({
           <select
             id="reservation-status"
             value={formState.status}
-            onChange={(event) => setFormState((current) => ({ ...current, status: event.target.value }))}
+            onChange={(event) =>
+              setFormState((current) => {
+                const nextStatus = event.target.value;
+                return {
+                  ...current,
+                  status: nextStatus,
+                  paymentStatus:
+                    nextStatus === 'confirmed'
+                      ? deriveConfirmedPaymentStatus(current.amountDue, current.amountPaid)
+                      : current.paymentStatus,
+                };
+              })
+            }
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
             {reservationStatusOptions.map((option) => (
@@ -842,12 +864,21 @@ const ReservationFormDialog = ({
             onChange={(event) => setFormState((current) => ({ ...current, paymentStatus: event.target.value }))}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
-            {paymentStatusOptions.map((option) => (
+            {(formState.status === 'confirmed'
+              ? paymentStatusOptions.filter((option) => ['partial', 'paid'].includes(option.value))
+              : paymentStatusOptions
+            ).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
+          {formState.status === 'confirmed' ? (
+            <p className="text-xs text-slate-500">
+              Reserva confirmada exige pagamento parcial ou pago. Se ainda nao recebeu, mantenha a reserva como
+              pendente.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
@@ -860,7 +891,16 @@ const ReservationFormDialog = ({
             min="0"
             step="0.01"
             value={formState.amountDue}
-            onChange={(event) => setFormState((current) => ({ ...current, amountDue: event.target.value }))}
+            onChange={(event) =>
+              setFormState((current) => ({
+                ...current,
+                amountDue: event.target.value,
+                paymentStatus:
+                  current.status === 'confirmed'
+                    ? deriveConfirmedPaymentStatus(event.target.value, current.amountPaid)
+                    : current.paymentStatus,
+              }))
+            }
           />
         </div>
 
@@ -872,7 +912,16 @@ const ReservationFormDialog = ({
             min="0"
             step="0.01"
             value={formState.amountPaid}
-            onChange={(event) => setFormState((current) => ({ ...current, amountPaid: event.target.value }))}
+            onChange={(event) =>
+              setFormState((current) => ({
+                ...current,
+                amountPaid: event.target.value,
+                paymentStatus:
+                  current.status === 'confirmed'
+                    ? deriveConfirmedPaymentStatus(current.amountDue, event.target.value)
+                    : current.paymentStatus,
+              }))
+            }
           />
         </div>
 
@@ -2070,6 +2119,10 @@ const ManageTableSales = () => {
       selectedEvent?.allow_individual_sales && reservationForm.reservationMode === 'individual'
         ? 'individual'
         : 'table';
+    const normalizedPaymentStatus =
+      reservationForm.status === 'confirmed'
+        ? deriveConfirmedPaymentStatus(reservationForm.amountDue, reservationForm.amountPaid)
+        : reservationForm.paymentStatus;
 
     if (
       !selectedEventId ||
@@ -2083,6 +2136,16 @@ const ManageTableSales = () => {
           reservationMode === 'individual'
             ? 'Informe quem fez a reserva e para quem a reserva individual foi registrada.'
             : 'Informe a mesa, quem fez a reserva e para quem ela foi registrada.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (reservationForm.status === 'confirmed' && normalizedPaymentStatus === 'pending') {
+      toast({
+        title: 'Erro',
+        description:
+          'Reserva confirmada exige pagamento parcial ou pago. Se o valor ainda nao foi recebido, mantenha a reserva como pendente.',
         variant: 'destructive',
       });
       return;
@@ -2104,7 +2167,7 @@ const ManageTableSales = () => {
         customer_email: trimOrNull(reservationForm.customerEmail),
         group_name: trimOrNull(reservationForm.groupName),
         status: reservationForm.status,
-        payment_status: reservationForm.paymentStatus,
+        payment_status: normalizedPaymentStatus,
         amount_due: parseNumberOrNull(reservationForm.amountDue),
         amount_paid: parseNumberOrZero(reservationForm.amountPaid),
         payment_method: trimOrNull(reservationForm.paymentMethod),

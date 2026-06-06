@@ -142,6 +142,11 @@ alter table public.table_sales_reservations
   add constraint table_sales_reservations_payment_status_check
   check (payment_status in ('pending', 'partial', 'paid', 'refunded'));
 
+alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_confirmed_payment_check;
+alter table public.table_sales_reservations
+  add constraint table_sales_reservations_confirmed_payment_check
+  check (status <> 'confirmed' or payment_status in ('partial', 'paid'));
+
 alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_amount_due_check;
 alter table public.table_sales_reservations
   add constraint table_sales_reservations_amount_due_check
@@ -515,6 +520,19 @@ begin
   );
   new.amount_paid := coalesce(new.amount_paid, 0);
   new.metadata := coalesce(new.metadata, '{}'::jsonb);
+
+  if new.status = 'confirmed' then
+    if new.amount_due <= 0 then
+      new.payment_status := 'paid';
+    elsif new.amount_paid <= 0 then
+      raise exception 'reserva confirmada exige pagamento parcial ou pago';
+    elsif new.amount_paid < new.amount_due then
+      new.payment_status := 'partial';
+    else
+      new.payment_status := 'paid';
+    end if;
+  end if;
+
   new.reservation_code := coalesce(
     nullif(btrim(coalesce(new.reservation_code, '')), ''),
     upper(substring(replace(gen_random_uuid()::text, '-', ''), 1, 8))

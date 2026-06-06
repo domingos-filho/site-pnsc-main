@@ -1,59 +1,27 @@
--- Table sales v1 patch: optional individual sale per event
+-- Table sales v1 patch: reservation/payment consistency
+-- Goal: prevent confirmed reservations with pending payment.
 -- Apply on top of an existing table_sales_v1 installation.
 
-alter table public.table_sales_events
-  add column if not exists allow_individual_sales boolean not null default false;
-
-alter table public.table_sales_reservations
-  add column if not exists reservation_mode text not null default 'table';
-
-alter table public.table_sales_reservations
-  alter column table_id drop not null;
-
-alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_mode_check;
-alter table public.table_sales_reservations
-  add constraint table_sales_reservations_mode_check
-  check (reservation_mode in ('table', 'individual'));
-
-alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_target_check;
-alter table public.table_sales_reservations
-  add constraint table_sales_reservations_target_check
-  check (
-    (reservation_mode = 'table' and table_id is not null)
-    or (reservation_mode = 'individual' and table_id is null)
-  );
-
-comment on table public.table_sales_events is
-  'Eventos operacionais de venda e reserva de mesas por unidade organizacional, com opcao de venda individual.';
-
-create or replace function public.prepare_table_sales_event()
-returns trigger
-language plpgsql
-as $$
-begin
-  new.name := btrim(coalesce(new.name, ''));
-  new.description := nullif(btrim(coalesce(new.description, '')), '');
-  new.slug := nullif(public.operacoes_slugify(coalesce(new.slug, new.name)), '');
-  new.location_text := nullif(btrim(coalesce(new.location_text, '')), '');
-  new.contact_name := nullif(btrim(coalesce(new.contact_name, '')), '');
-  new.contact_phone := nullif(btrim(coalesce(new.contact_phone, '')), '');
-  new.allow_individual_sales := coalesce(new.allow_individual_sales, false);
-  new.sales_status := coalesce(nullif(btrim(coalesce(new.sales_status, '')), ''), 'draft');
-  new.default_table_price := coalesce(new.default_table_price, 0);
-  new.metadata := coalesce(new.metadata, '{}'::jsonb);
-
-  if new.slug is null then
-    raise exception 'table_sales_events.slug nao pode ficar vazio';
-  end if;
-
-  if tg_op = 'INSERT' then
-    new.created_by := coalesce(new.created_by, auth.uid());
-  end if;
-
-  new.updated_by := coalesce(auth.uid(), new.updated_by, new.created_by);
-  return new;
+update public.table_sales_reservations
+set payment_status = case
+  when status = 'confirmed' and coalesce(amount_due, 0) <= 0 then 'paid'
+  when status = 'confirmed' and coalesce(amount_paid, 0) <= 0 then 'pending'
+  when status = 'confirmed' and coalesce(amount_paid, 0) < coalesce(amount_due, 0) then 'partial'
+  when status = 'confirmed' then 'paid'
+  else payment_status
 end;
-$$;
+
+update public.table_sales_reservations
+set
+  status = 'pending',
+  confirmed_at = null
+where status = 'confirmed'
+  and payment_status = 'pending';
+
+alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_confirmed_payment_check;
+alter table public.table_sales_reservations
+  add constraint table_sales_reservations_confirmed_payment_check
+  check (status <> 'confirmed' or payment_status in ('partial', 'paid'));
 
 create or replace function public.prepare_table_sales_reservation()
 returns trigger
@@ -160,8 +128,3 @@ begin
   return new;
 end;
 $$;
-
-alter table public.table_sales_reservations drop constraint if exists table_sales_reservations_confirmed_payment_check;
-alter table public.table_sales_reservations
-  add constraint table_sales_reservations_confirmed_payment_check
-  check (status <> 'confirmed' or payment_status in ('partial', 'paid'));
