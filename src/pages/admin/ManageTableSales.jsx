@@ -57,7 +57,7 @@ const paymentStatusOptions = [
   { value: 'refunded', label: 'Estornado' },
 ];
 
-const TABLES_PER_PAGE = 50;
+const TABLES_PER_PAGE = 20;
 
 const createEmptyEventForm = (orgUnitId = '') => ({
   orgUnitId,
@@ -105,7 +105,7 @@ const createEmptyReservationForm = () => ({
   customerName: '',
   reservedForName: '',
   customerPhone: '',
-  customerEmail: '',
+  reservedForPhone: '',
   groupName: '',
   status: 'pending',
   paymentStatus: 'pending',
@@ -133,6 +133,7 @@ const normalizeReservationRow = (row) => ({
   ...row,
   metadata: row.metadata || {},
   reserved_for_name: row.metadata?.reserved_for_name || '',
+  reserved_for_phone: row.metadata?.reserved_for_phone || '',
   table: normalizeNestedRelation(row.table_sales_tables),
 });
 
@@ -779,7 +780,7 @@ const TableSalesManualDialog = ({ open, onOpenChange }) => (
           <div className="rounded-2xl border border-slate-200 p-4">
             <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-600">Boas praticas</h3>
             <div className="mt-3 space-y-2 text-sm text-slate-700">
-              <p>Preencha telefone e e-mail de quem fez a reserva para facilitar cobranca e confirmacao.</p>
+              <p>Preencha o telefone de quem fez a reserva e, se necessario, o telefone de quem vai usar a mesa.</p>
               <p>Use a imagem do evento ou do layout das mesas para orientar a equipe no balcao.</p>
               <p>Revise periodicamente as reservas pendentes com prazo vencido.</p>
               <p>Feche o evento quando a operacao terminar, evitando novas reservas por engano.</p>
@@ -905,12 +906,12 @@ const ReservationFormDialog = ({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="reservation-customer-email">E-mail de quem reservou</Label>
+          <Label htmlFor="reservation-reserved-for-phone">Telefone de para quem foi reservado</Label>
           <Input
-            id="reservation-customer-email"
-            type="email"
-            value={formState.customerEmail}
-            onChange={(event) => setFormState((current) => ({ ...current, customerEmail: event.target.value }))}
+            id="reservation-reserved-for-phone"
+            value={formState.reservedForPhone}
+            onChange={(event) => setFormState((current) => ({ ...current, reservedForPhone: event.target.value }))}
+            placeholder="Opcional"
           />
         </div>
 
@@ -1203,7 +1204,7 @@ const ManageTableSales = () => {
         reservation.customer_name,
         reservation.reserved_for_name,
         reservation.customer_phone,
-        reservation.customer_email,
+        reservation.reserved_for_phone,
         reservation.group_name,
         reservation.table?.table_number,
         reservation.reservation_mode === 'individual' ? 'individual' : 'mesa',
@@ -2196,7 +2197,7 @@ const ManageTableSales = () => {
       customerName: reservation.customer_name || '',
       reservedForName: reservation.reserved_for_name || '',
       customerPhone: reservation.customer_phone || '',
-      customerEmail: reservation.customer_email || '',
+      reservedForPhone: reservation.reserved_for_phone || '',
       groupName: reservation.group_name || '',
       status: reservation.status || 'pending',
       paymentStatus: reservation.payment_status || 'pending',
@@ -2260,7 +2261,7 @@ const ManageTableSales = () => {
         table_id: reservationMode === 'table' ? reservationForm.tableId : null,
         customer_name: reservationForm.customerName.trim(),
         customer_phone: trimOrNull(reservationForm.customerPhone),
-        customer_email: trimOrNull(reservationForm.customerEmail),
+        customer_email: null,
         group_name: trimOrNull(reservationForm.groupName),
         status: reservationForm.status,
         payment_status: normalizedPaymentStatus,
@@ -2272,6 +2273,7 @@ const ManageTableSales = () => {
         metadata: {
           ...(reservationForm.metadata || {}),
           reserved_for_name: reservationForm.reservedForName.trim(),
+          reserved_for_phone: trimOrNull(reservationForm.reservedForPhone),
         },
       };
 
@@ -2875,7 +2877,7 @@ const ManageTableSales = () => {
                 <Input
                   value={reservationSearch}
                   onChange={(event) => setReservationSearch(event.target.value)}
-                  placeholder="Buscar por codigo, quem reservou, para quem, mesa ou individual"
+                  placeholder="Buscar por codigo, nomes, telefones, mesa ou individual"
                 />
               </div>
 
@@ -2915,7 +2917,12 @@ const ManageTableSales = () => {
                               <div className="text-xs text-slate-500">
                                 Para: {reservation.reserved_for_name || reservation.customer_name}
                               </div>
-                              <div className="text-xs text-slate-500">{reservation.customer_phone || '-'}</div>
+                              <div className="text-xs text-slate-500">
+                                Reservou: {reservation.customer_phone || '-'}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                Destino: {reservation.reserved_for_phone || '-'}
+                              </div>
                             </td>
                             <td className="py-3">
                               <span
@@ -2960,13 +2967,13 @@ const ManageTableSales = () => {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="font-mono text-xs text-slate-500">{reservation.reservation_code}</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              {reservation.customer_name}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              Para: {reservation.reserved_for_name || reservation.customer_name}
-                            </div>
+                          <div className="mt-1 text-base font-semibold text-slate-900">
+                            {reservation.customer_name}
                           </div>
+                          <div className="text-xs text-slate-500">
+                            Para: {reservation.reserved_for_name || reservation.customer_name}
+                          </div>
+                        </div>
                           <span
                             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getReservationStatusBadgeClass(
                               reservation.status
@@ -2978,7 +2985,8 @@ const ManageTableSales = () => {
                         </div>
                         <div className="mt-3 space-y-1 text-sm text-slate-600">
                           <div>{formatReservationTarget(reservation)}</div>
-                          <div>{reservation.customer_phone || '-'}</div>
+                          <div>Reservou: {reservation.customer_phone || '-'}</div>
+                          <div>Destino: {reservation.reserved_for_phone || '-'}</div>
                           <div>
                             Pago {formatCurrency(reservation.amount_paid)} de {formatCurrency(reservation.amount_due)}
                           </div>
